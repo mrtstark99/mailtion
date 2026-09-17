@@ -1,0 +1,11 @@
+name = "mailtion-email-router"
+main = "src/index.ts"
+compatibility_date = "2024-09-01"
+
+[vars]
+# Thay thế bằng URL domain hoặc IP VPS của bạn đã cấu hình SSL / Nginx
+# Ví dụ: "https://mailtion.com/api/webhook/email" hoặc "https://api.mailtion.com/api/webhook/email"
+DASHBOARD_WEBHOOK_URL = "https://your-vps-domain.com/api/webhook/email"
+
+# Khóa bí mật khớp với Webhook Secret trong bảng quản trị Dashboard
+WEBHOOK_SECRET = "mailtion_secret_key"
