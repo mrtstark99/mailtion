@@ -142,4 +142,19 @@ function createDb(): Database.Database {
   return db;
 }
 
-export const db = getDatabase();
+// Lazy singleton - only connect when first called, not at import time
+let _db: ReturnType<typeof getDatabase> | null = null;
+
+export function getDb() {
+  if (!_db) {
+    _db = getDatabase();
+  }
+  return _db;
+}
+
+// Keep backward compat export as a Proxy
+export const db = new Proxy({} as ReturnType<typeof getDatabase>, {
+  get(_target, prop) {
+    return getDb()[prop as keyof ReturnType<typeof getDatabase>];
+  },
+});
