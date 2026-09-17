@@ -1,4 +1,4 @@
-import Database from "better-sqlite3";
+import { DatabaseSync } from "node:sqlite";
 import path from "path";
 import fs from "fs";
 
@@ -13,10 +13,10 @@ const dbPath = path.join(dataDir, "mailtion.db");
 // Singleton connection
 declare global {
   // eslint-disable-next-line no-var
-  var __dbInstance: Database.Database | undefined;
+  var __dbInstance: DatabaseSync | undefined;
 }
 
-function getDatabase(): Database.Database {
+function getDatabase(): DatabaseSync {
   if (process.env.NODE_ENV === "production") {
     return createDb();
   }
@@ -26,26 +26,26 @@ function getDatabase(): Database.Database {
   return global.__dbInstance;
 }
 
-function createDb(): Database.Database {
-  const db = new Database(dbPath);
+function createDb(): DatabaseSync {
+  const db = new DatabaseSync(dbPath);
 
   // High performance PRAGMAs for SQLite on VPS
-  db.pragma("journal_mode = WAL");
-  db.pragma("synchronous = NORMAL");
-  db.pragma("foreign_keys = ON");
-  db.pragma("cache_size = -64000"); // 64MB cache
+  db.exec("PRAGMA journal_mode = WAL");
+  db.exec("PRAGMA synchronous = NORMAL");
+  db.exec("PRAGMA foreign_keys = ON");
+  db.exec("PRAGMA cache_size = -64000"); // 64MB cache
 
   // Initialize Schema
   db.exec(`
     CREATE TABLE IF NOT EXISTS mailboxes (
       id TEXT PRIMARY KEY,
-      name TEXT, -- Tên gợi nhớ / Tên hiển thị (vd: Facebook Chính, TikTok Ads...)
+      name TEXT,
       address TEXT UNIQUE NOT NULL,
       local_part TEXT NOT NULL,
       domain TEXT NOT NULL DEFAULT 'mailtion.com',
       tag TEXT,
       note TEXT,
-      status TEXT NOT NULL DEFAULT 'active', -- active, paused, expired
+      status TEXT NOT NULL DEFAULT 'active',
       expires_at DATETIME,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -93,7 +93,7 @@ function createDb(): Database.Database {
       filename TEXT NOT NULL,
       content_type TEXT NOT NULL,
       size INTEGER NOT NULL DEFAULT 0,
-      content TEXT, -- Base64 encoded or relative file path
+      content TEXT,
       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE
     );
@@ -119,7 +119,7 @@ function createDb(): Database.Database {
   // Default settings if not already set
   const initSettings = [
     { key: "domain", value: "mailtion.com" },
-    { key: "catch_all_mode", value: "auto_create" }, // auto_create or drop
+    { key: "catch_all_mode", value: "auto_create" },
     { key: "webhook_secret", value: "mailtion_secret_" + Math.random().toString(36).substring(2, 10) },
     { key: "telegram_bot_token", value: "" },
     { key: "telegram_chat_id", value: "" },
@@ -143,7 +143,7 @@ function createDb(): Database.Database {
 }
 
 // Lazy singleton - only connect when first called, not at import time
-let _db: ReturnType<typeof getDatabase> | null = null;
+let _db: DatabaseSync | null = null;
 
 export function getDb() {
   if (!_db) {
@@ -153,8 +153,8 @@ export function getDb() {
 }
 
 // Keep backward compat export as a Proxy
-export const db = new Proxy({} as ReturnType<typeof getDatabase>, {
+export const db = new Proxy({} as DatabaseSync, {
   get(_target, prop) {
-    return getDb()[prop as keyof ReturnType<typeof getDatabase>];
+    return getDb()[prop as keyof DatabaseSync];
   },
 });
