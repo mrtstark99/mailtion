@@ -153,8 +153,27 @@ export function getDb() {
 }
 
 // Keep backward compat export as a Proxy
-export const db = new Proxy({} as DatabaseSync, {
+// Includes .transaction() polyfill for better-sqlite3 compatibility
+export const db = new Proxy({} as DatabaseSync & {
+  transaction: <T extends unknown[]>(fn: (...args: T) => void) => (...args: T) => void;
+}, {
   get(_target, prop) {
-    return getDb()[prop as keyof DatabaseSync];
+    const instance = getDb();
+    if (prop === "transaction") {
+      return (fn: (...args: unknown[]) => void) => {
+        return (...args: unknown[]) => {
+          instance.exec("BEGIN");
+          try {
+            fn(...args);
+            instance.exec("COMMIT");
+          } catch (e) {
+            instance.exec("ROLLBACK");
+            throw e;
+          }
+        };
+      };
+    }
+    const val = instance[prop as keyof DatabaseSync];
+    return typeof val === "function" ? val.bind(instance) : val;
   },
 });
