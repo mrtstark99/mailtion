@@ -3,14 +3,16 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
   LayoutDashboard,
-  Sparkles,
   Mail,
+  Sparkles,
   Inbox,
   Send,
   KeyRound,
   Cloud,
   Settings as SettingsIcon,
-  X
+  UserCircle,
+  Users,
+  Loader2,
 } from "lucide-react";
 import { Navbar } from "@/components/navbar";
 import { ToastProvider, useToast } from "@/components/toast";
@@ -22,6 +24,17 @@ import { TabWebhooks } from "@/components/tab-webhooks";
 import { TabApiKeys } from "@/components/tab-api-keys";
 import { TabCloudflare } from "@/components/tab-cloudflare";
 import { TabSettings } from "@/components/tab-settings";
+import { TabProfile } from "@/components/tab-profile";
+import { TabAdminDashboard } from "@/components/tab-admin-dashboard";
+import { ComposeModal } from "@/components/compose-modal";
+import { LandingPage } from "@/components/landing-page";
+
+interface CurrentUser {
+  id: string;
+  username: string;
+  role: string;
+  email?: string;
+}
 
 interface StatsData {
   totalMailboxes: number;
@@ -29,6 +42,7 @@ interface StatsData {
   totalMessages: number;
   unreadMessages: number;
   todayMessages: number;
+  otpCount: number;
   tags: { tag: string; count: number }[];
 }
 
@@ -45,46 +59,71 @@ interface MessageItem {
 
 function DashboardContent() {
   const { toast } = useToast();
-  const [darkMode, setDarkMode] = useState<boolean>(true);
-  const [activeTab, setActiveTab] = useState<string>("overview");
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [authLoading, setAuthLoading] = useState<boolean>(true);
+  const [showLanding, setShowLanding] = useState<boolean>(false);
+  const [darkMode, setDarkMode] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("mailtion_theme");
+      if (saved) return saved === "dark";
+    }
+    return false; // Default: Light mode
+  });
+  const [activeTab, setActiveTab] = useState<string>("mailboxes");
   const [stats, setStats] = useState<StatsData | null>(null);
   const [recentMessages, setRecentMessages] = useState<MessageItem[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
-  const [inboxFilterAddress, setInboxFilterAddress] = useState<string>("");
-  const [isSimulating, setIsSimulating] = useState<boolean>(false);
-  const [showSimModal, setShowSimModal] = useState<boolean>(false);
-  const [simService, setSimService] = useState<string>("Google");
-  const [simTargetMailbox, setSimTargetMailbox] = useState<string>("");
+  const [inboxFilterAddress, setInboxFilterAddress] = useState<string | null>(null);
+  const [isComposeOpen, setIsComposeOpen] = useState<boolean>(false);
 
-  // Dark mode initialization & toggle
-  useEffect(() => {
-    const saved = localStorage.getItem("mailtion_theme");
-    if (saved) {
-      setDarkMode(saved === "dark");
-    } else if (typeof window !== "undefined") {
-      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-      setDarkMode(prefersDark);
-    }
-  }, []);
-
+  // Apply dark class and persist theme
   useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add("dark");
-      document.body.classList.add("dark");
       localStorage.setItem("mailtion_theme", "dark");
     } else {
       document.documentElement.classList.remove("dark");
-      document.body.classList.remove("dark");
       localStorage.setItem("mailtion_theme", "light");
     }
   }, [darkMode]);
 
-  // Fetch stats and recent messages
+  // Check auth
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const res = await fetch("/api/v1/auth/me");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.user) {
+            setCurrentUser(data.user);
+            if (data.user.role === "admin") {
+              setActiveTab("overview");
+            } else {
+              setActiveTab("mailboxes");
+            }
+          } else {
+            setCurrentUser(null);
+            setShowLanding(true);
+          }
+        } else {
+          setCurrentUser(null);
+          setShowLanding(true);
+        }
+      } catch {
+        setCurrentUser(null);
+        setShowLanding(true);
+      } finally {
+        setAuthLoading(false);
+      }
+    }
+    checkAuth();
+  }, []);
+
   const fetchData = useCallback(async () => {
     try {
       const [statsRes, messagesRes] = await Promise.all([
         fetch("/api/v1/stats"),
-        fetch("/api/v1/messages?limit=6"),
+        fetch("/api/v1/messages?limit=5"),
       ]);
 
       if (statsRes.ok) {
@@ -102,50 +141,19 @@ function DashboardContent() {
   }, []);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData, refreshTrigger]);
+    if (!authLoading && currentUser && !showLanding) {
+      fetchData();
+    }
+  }, [fetchData, refreshTrigger, authLoading, currentUser, showLanding]);
 
   const handleRefreshAll = () => {
     setRefreshTrigger((prev) => prev + 1);
-    toast("Đã làm mới dữ liệu");
+    toast("Data refreshed");
   };
 
   const handleOpenInboxForMailbox = (address: string) => {
     setInboxFilterAddress(address);
     setActiveTab("inbox");
-  };
-
-  const handleQuickSimulate = () => {
-    setShowSimModal(true);
-  };
-
-  const executeSimulate = async () => {
-    setIsSimulating(true);
-    try {
-      const target = simTargetMailbox.trim() || "demo@mailtion.com";
-      const res = await fetch("/api/v1/simulate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          to: target,
-          service: simService,
-        }),
-      });
-
-      const data = await res.json();
-      if (res.ok) {
-        toast(`Đã gửi email thử nghiệm (${simService}) tới ${target}!`, "success");
-        setShowSimModal(false);
-        setRefreshTrigger((prev) => prev + 1);
-        setActiveTab("inbox");
-      } else {
-        toast(data.error || "Lỗi mô phỏng", "error");
-      }
-    } catch {
-      toast("Lỗi kết nối", "error");
-    } finally {
-      setIsSimulating(false);
-    }
   };
 
   const handleQuickGenerateFromOverview = async (count: number) => {
@@ -161,31 +169,74 @@ function DashboardContent() {
         }),
       });
       if (res.ok) {
-        toast(`Đã tạo nhanh ${count} địa chỉ mail ngẫu nhiên!`, "success");
+        toast(`Successfully created ${count} random mailboxes!`, "success");
         setRefreshTrigger((prev) => prev + 1);
         setActiveTab("mailboxes");
       }
     } catch {
-      toast("Lỗi tạo nhanh", "error");
+      toast("Error generating mailboxes", "error");
     }
   };
 
-  const tabs = [
-    { id: "overview", label: "Tổng quan", icon: LayoutDashboard },
-    { id: "generator", label: "Tạo hàng loạt", icon: Sparkles },
-    { id: "mailboxes", label: "Hộp thư", icon: Mail, badge: stats?.activeMailboxes },
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white dark:bg-zinc-950">
+        <Loader2 className="h-8 w-8 animate-spin text-zinc-900 dark:text-zinc-100" />
+      </div>
+    );
+  }
+
+  // If visitor or explicitly viewing landing page
+  if (!currentUser || showLanding) {
+    return (
+      <LandingPage
+        isLoggedIn={Boolean(currentUser)}
+        onGoToDashboard={() => setShowLanding(false)}
+      />
+    );
+  }
+
+  const isAdmin = currentUser?.role === "admin";
+
+  // Tab definitions in English
+  const userTabs = [
+    { id: "mailboxes", label: "Mailboxes", icon: Mail, badge: stats?.activeMailboxes },
     {
       id: "inbox",
-      label: "Hộp thư đến",
+      label: "Inbox",
       icon: Inbox,
-      badge: stats && stats.unreadMessages > 0 ? `${stats.unreadMessages} mới` : undefined,
+      badge: stats && stats.unreadMessages > 0 ? `${stats.unreadMessages} new` : undefined,
       badgeColor: "bg-blue-500 text-white",
     },
-    { id: "webhooks", label: "Thông báo & Bot", icon: Send },
-    { id: "apikeys", label: "Khóa API", icon: KeyRound },
-    { id: "cloudflare", label: "Cloudflare", icon: Cloud },
-    { id: "settings", label: "Cài đặt", icon: SettingsIcon },
+    { id: "profile", label: "Profile Settings", icon: UserCircle },
   ];
+
+  const adminTabs = [
+    {
+      id: "admin_users",
+      label: "Quản trị Users",
+      icon: Users,
+      badge: "Admin",
+      badgeColor: "bg-purple-600 text-white",
+    },
+    { id: "mailboxes", label: "Mailboxes", icon: Mail, badge: stats?.activeMailboxes },
+    {
+      id: "inbox",
+      label: "Inbox",
+      icon: Inbox,
+      badge: stats && stats.unreadMessages > 0 ? `${stats.unreadMessages} new` : undefined,
+      badgeColor: "bg-blue-500 text-white",
+    },
+    { id: "overview", label: "Overview", icon: LayoutDashboard },
+    { id: "generator", label: "Bulk Generator", icon: Sparkles },
+    { id: "webhooks", label: "Webhooks & Bots", icon: Send },
+    { id: "apikeys", label: "API Keys", icon: KeyRound },
+    { id: "cloudflare", label: "Cloudflare", icon: Cloud },
+    { id: "settings", label: "Settings", icon: SettingsIcon },
+    { id: "profile", label: "Profile Settings", icon: UserCircle },
+  ];
+
+  const tabs = isAdmin ? adminTabs : userTabs;
 
   return (
     <div className="min-h-screen bg-zinc-50/50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100 flex flex-col font-sans transition-colors">
@@ -193,17 +244,29 @@ function DashboardContent() {
         darkMode={darkMode}
         setDarkMode={setDarkMode}
         onRefreshAll={handleRefreshAll}
-        onQuickSimulate={handleQuickSimulate}
-        isSimulating={isSimulating}
+        onOpenCompose={isAdmin ? () => setIsComposeOpen(true) : undefined}
+        onOpenDashboard={
+          isAdmin
+            ? () => {
+                setActiveTab("admin_users");
+                setShowLanding(false);
+              }
+            : undefined
+        }
+        isDashboardActive={activeTab === "admin_users" && !showLanding}
+        onViewLanding={() => setShowLanding(true)}
+        onNavigateProfile={() => {
+          setActiveTab("profile");
+          setShowLanding(false);
+        }}
+        currentUser={currentUser}
       />
 
-      {/* Main Container with Left Sidebar & Content */}
-      <main className="flex-1 w-full max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        {/* 2-Column Layout: Left Sidebar Menu + Right Content Panel */}
-        <div className="flex flex-col md:flex-row gap-6 lg:gap-8 items-start">
-          {/* Left Column Navigation */}
-          <aside className="w-full md:w-60 lg:w-64 shrink-0 overflow-x-hidden">
-            <nav className="flex flex-wrap md:flex-col gap-1.5 text-sm font-medium overflow-x-hidden">
+      <main className="flex-1 w-full max-w-screen-2xl mx-auto px-3 sm:px-6 lg:px-8 py-3.5 sm:py-6 space-y-4 sm:space-y-6">
+        <div className="flex flex-col md:flex-row gap-4 lg:gap-8 items-start">
+          {/* Sidebar Nav */}
+          <aside className="w-full md:w-60 lg:w-64 shrink-0">
+            <nav className="flex md:flex-col gap-1.5 text-sm font-medium overflow-x-auto no-scrollbar pb-1 md:pb-0 flex-nowrap scroll-smooth touch-pan-x -mx-3 px-3 md:mx-0 md:px-0">
               {tabs.map((tab) => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
@@ -211,27 +274,30 @@ function DashboardContent() {
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`flex items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 text-left transition-colors shrink-0 md:w-full active:scale-[0.98] ${
+                    className={`flex items-center justify-between gap-2.5 sm:gap-3 rounded-xl px-3 sm:px-3.5 py-2 sm:py-2.5 text-left transition-colors shrink-0 whitespace-nowrap md:w-full active:scale-[0.98] cursor-pointer ${
                       isActive
-                        ? "bg-zinc-100 text-zinc-900 font-bold dark:bg-zinc-800 dark:text-zinc-100 shadow-xs"
+                        ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-semibold shadow-xs"
                         : "text-zinc-600 hover:bg-zinc-100/70 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/60 dark:hover:text-zinc-100"
                     }`}
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 sm:gap-3">
                       <Icon
-                        className={`h-4.5 w-4.5 transition-colors ${
+                        className={`h-4 w-4 sm:h-4.5 sm:w-4.5 transition-colors ${
                           isActive
-                            ? "text-zinc-900 dark:text-zinc-100"
+                            ? "text-white dark:text-zinc-900"
                             : "text-zinc-400 dark:text-zinc-500"
                         }`}
                       />
                       <span>{tab.label}</span>
                     </div>
+
                     {tab.badge !== undefined && (
                       <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+                        className={`rounded-full px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-xs font-bold ${
                           tab.badgeColor ||
-                          "bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200"
+                          (isActive
+                            ? "bg-zinc-800 text-zinc-100 dark:bg-zinc-200 dark:text-zinc-800"
+                            : "bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200")
                         }`}
                       >
                         {tab.badge}
@@ -241,152 +307,68 @@ function DashboardContent() {
                 );
               })}
             </nav>
-
-            {/* Quick Status Pill in Sidebar for Desktop */}
-            <div className="hidden md:block mt-6 p-4 rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900/40 text-xs text-zinc-500 space-y-2.5 shadow-xs overflow-hidden">
-              <div className="flex items-center justify-between">
-                <span>Miền tiếp nhận:</span>
-                <strong className="font-mono text-zinc-800 dark:text-zinc-200 text-xs">mailtion.com</strong>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Cơ sở dữ liệu:</span>
-                <span className="font-mono text-zinc-800 dark:text-zinc-200 text-xs">SQLite (WAL)</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Worker Inbound:</span>
-                <span className="text-emerald-600 dark:text-emerald-400 font-semibold text-xs">Sẵn sàng</span>
-              </div>
-            </div>
           </aside>
 
-          {/* Right Column: Tab Content Panels */}
+          {/* Tab Content */}
           <div className="flex-1 w-full min-w-0">
-            {activeTab === "overview" && (
+            {activeTab === "admin_users" && isAdmin && (
+              <TabAdminDashboard
+                currentUserId={currentUser.id}
+                onRefreshAll={handleRefreshAll}
+              />
+            )}
+            {activeTab === "overview" && isAdmin && (
               <TabOverview
                 stats={stats}
                 recentMessages={recentMessages}
-                onNavigateTab={(tab) => setActiveTab(tab)}
-                onOpenMessage={() => setActiveTab("inbox")}
+                onSelectTab={setActiveTab}
+                onOpenInboxForMailbox={handleOpenInboxForMailbox}
                 onQuickGenerate={handleQuickGenerateFromOverview}
               />
             )}
-
-            {activeTab === "generator" && (
+            {activeTab === "generator" && isAdmin && (
               <TabGenerator
-                onSuccessCreated={() => {
+                onGenerated={() => {
                   setRefreshTrigger((prev) => prev + 1);
+                  setActiveTab("mailboxes");
                 }}
-                onNavigateToMailboxes={() => setActiveTab("mailboxes")}
               />
             )}
-
             {activeTab === "mailboxes" && (
               <TabMailboxes
                 onOpenInboxForMailbox={handleOpenInboxForMailbox}
                 refreshTrigger={refreshTrigger}
               />
             )}
-
             {activeTab === "inbox" && (
               <TabInbox
-                initialFilterAddress={inboxFilterAddress}
-                onClearAddressFilter={() => setInboxFilterAddress("")}
                 refreshTrigger={refreshTrigger}
+                initialMailboxFilter={inboxFilterAddress || undefined}
               />
             )}
-
-            {activeTab === "webhooks" && <TabWebhooks />}
-
-            {activeTab === "apikeys" && <TabApiKeys />}
-
-            {activeTab === "cloudflare" && <TabCloudflare />}
-
-            {activeTab === "settings" && <TabSettings />}
+            {activeTab === "webhooks" && isAdmin && <TabWebhooks />}
+            {activeTab === "apikeys" && isAdmin && <TabApiKeys />}
+            {activeTab === "cloudflare" && isAdmin && <TabCloudflare />}
+            {activeTab === "settings" && isAdmin && <TabSettings />}
+            {activeTab === "profile" && <TabProfile />}
           </div>
         </div>
       </main>
 
-      {/* Quick Simulate Modal */}
-      {showSimModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-md rounded-xl border border-zinc-200 bg-white p-5 shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
-            <div className="flex items-center justify-between border-b border-zinc-100 pb-3 dark:border-zinc-800">
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-amber-500" />
-                <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                  Thử nghiệm Nhận Email Ngay
-                </h3>
-              </div>
-              <button
-                onClick={() => setShowSimModal(false)}
-                className="rounded p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="mt-4 space-y-4">
-              <div>
-                <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                  Địa chỉ email nhận
-                </label>
-                <input
-                  type="text"
-                  value={simTargetMailbox}
-                  onChange={(e) => setSimTargetMailbox(e.target.value)}
-                  placeholder="demo@mailtion.com"
-                  className="mt-1 w-full rounded-lg border border-zinc-200 bg-transparent px-3 py-2 text-xs font-mono text-zinc-900 dark:border-zinc-700 dark:text-zinc-100 outline-none focus:border-zinc-900 dark:focus:border-zinc-400"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                  Mẫu dịch vụ gửi mã OTP
-                </label>
-                <div className="mt-1 grid grid-cols-2 gap-2">
-                  {["Google", "TikTok"].map((srv) => (
-                    <button
-                      key={srv}
-                      type="button"
-                      onClick={() => setSimService(srv)}
-                      className={`rounded-lg border p-2.5 text-xs font-medium text-center transition-colors ${
-                        simService === srv
-                          ? "border-zinc-900 bg-zinc-100 dark:border-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-semibold"
-                          : "border-zinc-200 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800/60"
-                      }`}
-                    >
-                      {srv}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
-                <button
-                  type="button"
-                  onClick={() => setShowSimModal(false)}
-                  className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="button"
-                  onClick={executeSimulate}
-                  disabled={isSimulating}
-                  className="flex items-center gap-1.5 rounded-lg bg-zinc-900 px-4 py-1.5 text-xs font-medium text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200 disabled:opacity-50"
-                >
-                  <span>{isSimulating ? "Đang gửi..." : "Gửi email ngay"}</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+      {isAdmin && isComposeOpen && (
+        <ComposeModal
+          isOpen={isComposeOpen}
+          onClose={() => setIsComposeOpen(false)}
+          onSuccess={() => {
+            setRefreshTrigger((prev) => prev + 1);
+          }}
+        />
       )}
     </div>
   );
 }
 
-export default function DashboardPage() {
+export default function Home() {
   return (
     <ToastProvider>
       <DashboardContent />

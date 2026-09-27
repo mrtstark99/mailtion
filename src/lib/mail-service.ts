@@ -4,6 +4,7 @@ import crypto from "crypto";
 
 export interface Mailbox {
   id: string;
+  user_id?: string | null;
   name: string | null;
   address: string;
   local_part: string;
@@ -11,6 +12,7 @@ export interface Mailbox {
   tag: string | null;
   note: string | null;
   status: "active" | "paused" | "expired";
+  is_primary?: number;
   expires_at: string | null;
   created_at: string;
   updated_at: string;
@@ -85,13 +87,19 @@ export function getMailboxes(options: {
   search?: string;
   tag?: string;
   status?: string;
+  userId?: string | null;
 } = {}) {
   const page = Math.max(1, options.page || 1);
   const limit = Math.min(100, Math.max(1, options.limit || 20));
   const offset = (page - 1) * limit;
 
   let whereClauses = "WHERE 1=1";
-  const params: unknown[] = [];
+  const params: (string | number)[] = [];
+
+  if (options.userId) {
+    whereClauses += " AND m.user_id = ?";
+    params.push(options.userId);
+  }
 
   if (options.search) {
     whereClauses += " AND (m.address LIKE ? OR m.name LIKE ? OR m.note LIKE ? OR m.tag LIKE ?)";
@@ -110,7 +118,7 @@ export function getMailboxes(options: {
   }
 
   const countQuery = `SELECT COUNT(*) as total FROM mailboxes m ${whereClauses}`;
-  const totalRow = db.prepare(countQuery).get(...params) as { total: number };
+  const totalRow = db.prepare(countQuery).get(...params) as unknown as { total: number } | undefined;
   const total = totalRow ? totalRow.total : 0;
 
   const dataQuery = `
@@ -122,11 +130,11 @@ export function getMailboxes(options: {
     LEFT JOIN messages msg ON m.id = msg.mailbox_id
     ${whereClauses}
     GROUP BY m.id
-    ORDER BY m.created_at DESC
+    ORDER BY m.is_primary DESC, m.created_at DESC
     LIMIT ? OFFSET ?
   `;
 
-  const rows = db.prepare(dataQuery).all(...params, limit, offset) as Mailbox[];
+  const rows = db.prepare(dataQuery).all(...params, limit, offset) as unknown as Mailbox[];
 
   return {
     items: rows,
@@ -139,7 +147,7 @@ export function getMailboxes(options: {
 
 export function getMailboxByAddress(address: string): Mailbox | null {
   const row = db.prepare("SELECT * FROM mailboxes WHERE address = ?").get(address.toLowerCase().trim());
-  return (row as Mailbox) || null;
+  return (row as unknown as Mailbox) || null;
 }
 
 export function createMailbox(data: {
@@ -149,6 +157,8 @@ export function createMailbox(data: {
   tag?: string;
   note?: string;
   expiryHours?: number;
+  userId?: string | null;
+  isPrimary?: boolean;
 }): Mailbox {
   const domain = data.domain || getSettings()["domain"] || "mailtion.com";
   const cleanLocal = data.localPart.toLowerCase().replace(/[^a-z0-9._-]/g, "");
@@ -158,6 +168,9 @@ export function createMailbox(data: {
   if (existing) {
     if (data.name && existing.name !== data.name) {
       db.prepare("UPDATE mailboxes SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(data.name, existing.id);
+    }
+    if (data.userId && !existing.user_id) {
+      db.prepare("UPDATE mailboxes SET user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(data.userId, existing.id);
     }
     return getMailboxByAddress(address)!;
   }
@@ -170,16 +183,18 @@ export function createMailbox(data: {
   }
 
   db.prepare(`
-    INSERT INTO mailboxes (id, name, address, local_part, domain, tag, note, status, expires_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?)
+    INSERT INTO mailboxes (id, user_id, name, address, local_part, domain, tag, note, status, is_primary, expires_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
   `).run(
     id,
+    data.userId || null,
     data.name ? data.name.trim() : null,
     address,
     cleanLocal,
     domain,
     data.tag || null,
     data.note || null,
+    data.isPrimary ? 1 : 0,
     expiresAt
   );
 
@@ -198,7 +213,6 @@ export function createBulkMailboxes(options: {
   expiryHours?: number;
 }): Mailbox[] {
   const domain = options.domain || getSettings()["domain"] || "mailtion.com";
-  const results: Mailbox[] = [];
   const generatedNames: string[] = [];
 
   if (options.mode === "custom" && options.customList) {
@@ -252,16 +266,14 @@ export function createBulkMailboxes(options: {
 
   transaction(generatedNames);
 
-  // Retrieve created
-  for (const name of generatedNames) {
-    const cleanLocal = name.toLowerCase().replace(/[^a-z0-9._-]/g, "");
-    if (!cleanLocal) continue;
-    const address = `${cleanLocal}@${domain}`.toLowerCase();
-    const mb = getMailboxByAddress(address);
-    if (mb) results.push(mb);
-  }
+  const addresses = [...new Set(generatedNames
+    .map((name) => name.toLowerCase().replace(/[^a-z0-9._-]/g, ""))
+    .filter(Boolean)
+    .map((localPart) => `${localPart}@${domain}`.toLowerCase()))];
+  if (addresses.length === 0) return [];
 
-  return results;
+  const placeholders = addresses.map(() => "?").join(",");
+  return db.prepare(`SELECT * FROM mailboxes WHERE address IN (${placeholders})`).all(...addresses) as unknown as Mailbox[];
 }
 
 export function toggleMailboxStatus(id: string, status: "active" | "paused" | "expired") {
@@ -269,13 +281,17 @@ export function toggleMailboxStatus(id: string, status: "active" | "paused" | "e
 }
 
 export function deleteMailbox(id: string) {
+  const mb = db.prepare("SELECT is_primary FROM mailboxes WHERE id = ?").get(id) as { is_primary?: number } | undefined;
+  if (mb && mb.is_primary === 1) {
+    throw new Error("Cannot delete primary account mailbox.");
+  }
   db.prepare("DELETE FROM mailboxes WHERE id = ?").run(id);
 }
 
 export function deleteBulkMailboxes(ids: string[]) {
   if (ids.length === 0) return;
   const placeholders = ids.map(() => "?").join(",");
-  db.prepare(`DELETE FROM mailboxes WHERE id IN (${placeholders})`).run(...ids);
+  db.prepare(`DELETE FROM mailboxes WHERE id IN (${placeholders}) AND (is_primary IS NULL OR is_primary != 1)`).run(...ids);
 }
 
 // -------------------------------------------------------------
@@ -288,13 +304,19 @@ export function getMessages(options: {
   mailboxAddress?: string;
   search?: string;
   unreadOnly?: boolean;
+  userId?: string | null;
 } = {}) {
   const page = Math.max(1, options.page || 1);
   const limit = Math.min(100, Math.max(1, options.limit || 20));
   const offset = (page - 1) * limit;
 
   let whereClauses = "WHERE 1=1";
-  const params: unknown[] = [];
+  const params: (string | number)[] = [];
+
+  if (options.userId) {
+    whereClauses += " AND m.mailbox_id IN (SELECT id FROM mailboxes WHERE user_id = ?)";
+    params.push(options.userId);
+  }
 
   if (options.mailboxId) {
     whereClauses += " AND m.mailbox_id = ?";
@@ -315,7 +337,7 @@ export function getMessages(options: {
   }
 
   const countQuery = `SELECT COUNT(*) as total FROM messages m ${whereClauses}`;
-  const totalRow = db.prepare(countQuery).get(...params) as { total: number };
+  const totalRow = db.prepare(countQuery).get(...params) as unknown as { total: number } | undefined;
   const total = totalRow ? totalRow.total : 0;
 
   const dataQuery = `
@@ -330,7 +352,14 @@ export function getMessages(options: {
     LIMIT ? OFFSET ?
   `;
 
-  const rows = db.prepare(dataQuery).all(...params, limit, offset) as Message[];
+  const rawRows = db.prepare(dataQuery).all(...params, limit, offset) as unknown as Message[];
+  const rows = rawRows.map((row) => ({
+    ...row,
+    created_at:
+      row.created_at && !row.created_at.includes("Z") && !row.created_at.includes("+")
+        ? row.created_at.replace(" ", "T") + "Z"
+        : row.created_at,
+  }));
 
   return {
     items: rows,
@@ -341,7 +370,7 @@ export function getMessages(options: {
   };
 }
 
-export function getMessageById(id: string): (Message & { attachments: Attachment[] }) | null {
+export function getMessageById(id: string, userId?: string | null): (Message & { attachments: Attachment[] }) | null {
   const msg = db.prepare(`
     SELECT 
       m.*,
@@ -354,7 +383,14 @@ export function getMessageById(id: string): (Message & { attachments: Attachment
 
   if (!msg) return null;
 
-  const attachments = db.prepare("SELECT * FROM attachments WHERE message_id = ?").all(id) as Attachment[];
+  if (userId) {
+    const owner = db.prepare("SELECT user_id FROM mailboxes WHERE id = ?").get(msg.mailbox_id) as { user_id: string | null } | undefined;
+    if (owner?.user_id !== userId) {
+      return null;
+    }
+  }
+
+  const attachments = db.prepare("SELECT * FROM attachments WHERE message_id = ?").all(id) as unknown as Attachment[];
   return { ...msg, attachments };
 }
 
@@ -410,10 +446,11 @@ export async function processInboundEmail(payload: {
   const otpCode = extractOtpCode(`${payload.subject} ${textContent}`);
   const hasAttachments = payload.attachments && payload.attachments.length > 0 ? 1 : 0;
 
+  const nowIso = new Date().toISOString();
   db.prepare(`
     INSERT INTO messages (
-      id, mailbox_id, from_addr, from_name, to_addr, subject, body_text, body_html, raw_headers, is_read, has_attachments, otp_code
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)
+      id, mailbox_id, from_addr, from_name, to_addr, subject, body_text, body_html, raw_headers, is_read, has_attachments, otp_code, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
   `).run(
     messageId,
     mailbox.id,
@@ -425,7 +462,8 @@ export async function processInboundEmail(payload: {
     htmlContent,
     payload.rawHeaders || null,
     hasAttachments,
-    otpCode
+    otpCode,
+    nowIso
   );
 
   // Attachments
@@ -449,11 +487,11 @@ export async function processInboundEmail(payload: {
   // Telegram Notification
   if (settings["telegram_enabled"] === "1" && settings["telegram_bot_token"] && settings["telegram_chat_id"]) {
     try {
-      const otpText = otpCode ? `\n🔢 <b>Mã OTP:</b> <code>${otpCode}</code>` : "";
-      const text = `📬 <b>Mail Mới Đến mailtion.com!</b>\n\n` +
-        `📥 <b>Tới:</b> <code>${toAddr}</code>\n` +
-        `👤 <b>Từ:</b> ${payload.fromName ? `${payload.fromName} &lt;${payload.from}&gt;` : payload.from}\n` +
-        `📝 <b>Tiêu đề:</b> ${payload.subject || "(Trống)"}` +
+      const otpText = otpCode ? `\n🔢 <b>OTP Code:</b> <code>${otpCode}</code>` : "";
+      const text = `📬 <b>New Incoming Email on mailtion.com!</b>\n\n` +
+        `📥 <b>To:</b> <code>${toAddr}</code>\n` +
+        `👤 <b>From:</b> ${payload.fromName ? `${payload.fromName} &lt;${payload.from}&gt;` : payload.from}\n` +
+        `📝 <b>Subject:</b> ${payload.subject || "(No Subject)"}` +
         otpText;
 
       fetch(`https://api.telegram.org/bot${settings["telegram_bot_token"]}/sendMessage`, {
@@ -478,11 +516,11 @@ export async function processInboundEmail(payload: {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           embeds: [{
-            title: `📬 Mail mới tới: ${toAddr}`,
-            description: payload.subject || "(Trống)",
+            title: `📬 New Email to: ${toAddr}`,
+            description: payload.subject || "(No Subject)",
             fields: [
-              { name: "Người gửi", value: payload.from, inline: true },
-              ...(otpCode ? [{ name: "Mã OTP", value: `\`${otpCode}\``, inline: true }] : [])
+              { name: "From", value: payload.from, inline: true },
+              ...(otpCode ? [{ name: "OTP Code", value: `\`${otpCode}\``, inline: true }] : [])
             ],
             color: 0x3b82f6,
             timestamp: new Date().toISOString()
@@ -500,31 +538,37 @@ export async function processInboundEmail(payload: {
 // -------------------------------------------------------------
 // Stats
 // -------------------------------------------------------------
-export function getSystemStats() {
-  const totalMailboxes = (db.prepare("SELECT COUNT(*) as count FROM mailboxes").get() as { count: number }).count;
-  const activeMailboxes = (db.prepare("SELECT COUNT(*) as count FROM mailboxes WHERE status = 'active'").get() as { count: number }).count;
-  const totalMessages = (db.prepare("SELECT COUNT(*) as count FROM messages").get() as { count: number }).count;
-  const unreadMessages = (db.prepare("SELECT COUNT(*) as count FROM messages WHERE is_read = 0").get() as { count: number }).count;
-  
-  // Messages today
-  const todayMessages = (db.prepare(`
-    SELECT COUNT(*) as count FROM messages 
-    WHERE date(created_at) = date('now')
-  `).get() as { count: number }).count;
+export function getSystemStats(userId?: string | null) {
+  const scope = userId ? "WHERE user_id = ?" : "";
+  const stats = db.prepare(`
+    SELECT
+      COUNT(*) AS totalMailboxes,
+      SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS activeMailboxes,
+      (SELECT COUNT(*) FROM messages msg WHERE ${userId ? "msg.mailbox_id IN (SELECT id FROM mailboxes WHERE user_id = ?)" : "1=1"}) AS totalMessages,
+      (SELECT COUNT(*) FROM messages msg WHERE msg.is_read = 0 AND ${userId ? "msg.mailbox_id IN (SELECT id FROM mailboxes WHERE user_id = ?)" : "1=1"}) AS unreadMessages,
+      (SELECT COUNT(*) FROM messages msg WHERE date(msg.created_at) = date('now') AND ${userId ? "msg.mailbox_id IN (SELECT id FROM mailboxes WHERE user_id = ?)" : "1=1"}) AS todayMessages
+    FROM mailboxes ${scope}
+  `).get(...(userId ? [userId, userId, userId, userId] : [])) as {
+    totalMailboxes: number;
+    activeMailboxes: number;
+    totalMessages: number;
+    unreadMessages: number;
+    todayMessages: number;
+  };
 
   // Recent tags
   const tags = db.prepare(`
     SELECT tag, COUNT(*) as count FROM mailboxes 
-    WHERE tag IS NOT NULL AND tag != ''
+    ${userId ? "WHERE user_id = ? AND" : "WHERE"} tag IS NOT NULL AND tag != ''
     GROUP BY tag ORDER BY count DESC LIMIT 10
-  `).all() as { tag: string; count: number }[];
+  `).all(...(userId ? [userId] : [])) as { tag: string; count: number }[];
 
   return {
-    totalMailboxes,
-    activeMailboxes,
-    totalMessages,
-    unreadMessages,
-    todayMessages,
+    totalMailboxes: stats.totalMailboxes,
+    activeMailboxes: stats.activeMailboxes,
+    totalMessages: stats.totalMessages,
+    unreadMessages: stats.unreadMessages,
+    todayMessages: stats.todayMessages,
     tags
   };
 }
@@ -533,7 +577,7 @@ export function getSystemStats() {
 // API Keys
 // -------------------------------------------------------------
 export function getApiKeys(): ApiKey[] {
-  return db.prepare("SELECT * FROM api_keys ORDER BY created_at DESC").all() as ApiKey[];
+  return db.prepare("SELECT * FROM api_keys ORDER BY created_at DESC").all() as unknown as ApiKey[];
 }
 
 export function createApiKey(name: string, permissions: string = "all"): ApiKey {
@@ -545,7 +589,7 @@ export function createApiKey(name: string, permissions: string = "all"): ApiKey 
     VALUES (?, ?, ?, ?)
   `).run(id, name, token, permissions);
 
-  return db.prepare("SELECT * FROM api_keys WHERE id = ?").get(id) as ApiKey;
+  return db.prepare("SELECT * FROM api_keys WHERE id = ?").get(id) as unknown as ApiKey;
 }
 
 export function deleteApiKey(id: string) {

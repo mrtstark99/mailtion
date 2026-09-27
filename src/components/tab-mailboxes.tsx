@@ -7,7 +7,6 @@ import {
   Trash2,
   Power,
   Inbox,
-  Filter,
   Download,
   ChevronLeft,
   ChevronRight,
@@ -17,8 +16,9 @@ import {
   Plus,
   Edit2,
   X,
-  Sparkles,
-  Tag
+  Tag,
+  Dices,
+  ShieldCheck,
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { useToast } from "./toast";
@@ -32,6 +32,7 @@ interface MailboxItem {
   tag: string | null;
   note: string | null;
   status: "active" | "paused" | "expired";
+  is_primary?: number;
   expires_at: string | null;
   created_at: string;
   message_count?: number;
@@ -89,7 +90,7 @@ export function TabMailboxes({ onOpenInboxForMailbox, refreshTrigger }: TabMailb
         setTotalPages(data.totalPages || 1);
       }
     } catch {
-      toast("Không thể tải danh sách hộp thư", "error");
+      toast("Failed to load mailboxes", "error");
     } finally {
       setIsLoading(false);
     }
@@ -102,7 +103,7 @@ export function TabMailboxes({ onOpenInboxForMailbox, refreshTrigger }: TabMailb
   const copyAddress = (address: string, id: string) => {
     navigator.clipboard.writeText(address);
     setCopiedId(id);
-    toast(`Đã chép: ${address}`);
+    toast(`Copied: ${address}`);
     setTimeout(() => setCopiedId(null), 1500);
   };
 
@@ -118,33 +119,41 @@ export function TabMailboxes({ onOpenInboxForMailbox, refreshTrigger }: TabMailb
         setItems((prev) =>
           prev.map((item) => (item.id === id ? { ...item, status: nextStatus as "active" | "paused" } : item))
         );
-        toast(`Hộp thư chuyển sang trạng thái ${nextStatus === "active" ? "Hoạt động" : "Tạm dừng"}`);
+        toast(`Mailbox status changed to ${nextStatus === "active" ? "Active" : "Paused"}`);
+      } else {
+        const data = await res.json();
+        toast(data.error || "Could not update status", "error");
       }
     } catch {
-      toast("Không thể cập nhật trạng thái", "error");
+      toast("Could not update status", "error");
     }
   };
 
   const deleteSingle = async (id: string) => {
-    if (!confirm("Bạn có chắc muốn xóa hộp thư này cùng toàn bộ email của nó?")) return;
+    if (!confirm("Are you sure you want to delete this mailbox and all of its emails?")) return;
     try {
       const res = await fetch(`/api/v1/mailboxes/${id}`, { method: "DELETE" });
+      const data = await res.json();
       if (res.ok) {
-        toast("Đã xóa hộp thư");
+        toast("Mailbox deleted");
         fetchMailboxes();
         setSelectedIds((prev) => prev.filter((i) => i !== id));
+      } else {
+        toast(data.error || "Failed to delete mailbox", "error");
       }
     } catch {
-      toast("Không thể xóa hộp thư", "error");
+      toast("Failed to delete mailbox", "error");
     }
   };
 
-  // Bulk Actions
+  // Bulk Actions - exclude primary mailboxes
+  const selectableItems = items.filter((i) => i.is_primary !== 1);
+
   const handleSelectAll = () => {
-    if (selectedIds.length === items.length) {
+    if (selectedIds.length === selectableItems.length && selectableItems.length > 0) {
       setSelectedIds([]);
     } else {
-      setSelectedIds(items.map((i) => i.id));
+      setSelectedIds(selectableItems.map((i) => i.id));
     }
   };
 
@@ -156,7 +165,7 @@ export function TabMailboxes({ onOpenInboxForMailbox, refreshTrigger }: TabMailb
 
   const handleBulkDelete = async () => {
     if (selectedIds.length === 0) return;
-    if (!confirm(`Xác nhận xóa vĩnh viễn ${selectedIds.length} hộp thư đã chọn?`)) return;
+    if (!confirm(`Permanently delete ${selectedIds.length} selected mailboxes?`)) return;
 
     try {
       const res = await fetch("/api/v1/mailboxes", {
@@ -165,12 +174,12 @@ export function TabMailboxes({ onOpenInboxForMailbox, refreshTrigger }: TabMailb
         body: JSON.stringify({ ids: selectedIds }),
       });
       if (res.ok) {
-        toast(`Đã xóa ${selectedIds.length} hộp thư`);
+        toast(`Deleted selected mailboxes`);
         setSelectedIds([]);
         fetchMailboxes();
       }
     } catch {
-      toast("Lỗi khi xóa hàng loạt", "error");
+      toast("Failed to delete selected mailboxes", "error");
     }
   };
 
@@ -181,7 +190,7 @@ export function TabMailboxes({ onOpenInboxForMailbox, refreshTrigger }: TabMailb
     if (selectedAddresses.length === 0) return;
 
     navigator.clipboard.writeText(selectedAddresses.join("\n"));
-    toast(`Đã chép ${selectedAddresses.length} địa chỉ mail đã chọn`);
+    toast(`Copied ${selectedAddresses.length} email addresses`);
   };
 
   const handleExportSelected = () => {
@@ -196,7 +205,7 @@ export function TabMailboxes({ onOpenInboxForMailbox, refreshTrigger }: TabMailb
     a.download = `mailtion_selected_${Date.now()}.txt`;
     a.click();
     URL.revokeObjectURL(url);
-    toast("Đã xuất tệp .txt");
+    toast("Exported to .txt file");
   };
 
   // Quick Single Creation Handler
@@ -204,7 +213,7 @@ export function TabMailboxes({ onOpenInboxForMailbox, refreshTrigger }: TabMailb
     e.preventDefault();
     setIsCreating(true);
     try {
-      let local = newLocal.trim();
+      let local = newLocal.trim().replace(/@mailtion\.com$/i, "").trim();
       if (!local) {
         local = `user_${Math.random().toString(36).substring(2, 8)}`;
       }
@@ -222,7 +231,7 @@ export function TabMailboxes({ onOpenInboxForMailbox, refreshTrigger }: TabMailb
 
       const data = await res.json();
       if (res.ok) {
-        toast(`Đã tạo hộp thư: ${data.item.address}`, "success");
+        toast(`Mailbox created: ${data.item.address}`, "success");
         setShowCreateModal(false);
         setNewName("");
         setNewLocal("");
@@ -230,10 +239,10 @@ export function TabMailboxes({ onOpenInboxForMailbox, refreshTrigger }: TabMailb
         setNewNote("");
         fetchMailboxes();
       } else {
-        toast(data.error || "Lỗi tạo hộp thư", "error");
+        toast(data.error || "Failed to create mailbox", "error");
       }
     } catch {
-      toast("Lỗi kết nối", "error");
+      toast("Connection error", "error");
     } finally {
       setIsCreating(false);
     }
@@ -264,25 +273,26 @@ export function TabMailboxes({ onOpenInboxForMailbox, refreshTrigger }: TabMailb
       });
 
       if (res.ok) {
-        toast("Đã cập nhật thông tin hộp thư!", "success");
+        toast("Mailbox updated successfully!", "success");
         setEditingItem(null);
         fetchMailboxes();
       } else {
-        toast("Lỗi khi cập nhật", "error");
+        const data = await res.json();
+        toast(data.error || "Failed to update mailbox", "error");
       }
     } catch {
-      toast("Lỗi kết nối", "error");
+      toast("Connection error", "error");
     } finally {
       setIsSavingEdit(false);
     }
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4 sm:space-y-5 font-sans">
       {/* Search, Filter & Quick Create Action Bar */}
-      <div className="flex flex-col gap-4 rounded-xl border border-zinc-200 bg-white p-5 shadow-xs dark:border-zinc-800 dark:bg-zinc-900/50 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 sm:gap-4 rounded-xl border border-zinc-200 bg-white p-3.5 sm:p-5 shadow-xs dark:border-zinc-800 dark:bg-zinc-900/50 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative flex-1">
-          <Search className="absolute left-3.5 top-3 h-4 w-4 text-zinc-400" />
+          <Search className="absolute left-3.5 top-2.5 sm:top-3 h-4 w-4 text-zinc-400" />
           <input
             type="text"
             value={search}
@@ -290,24 +300,24 @@ export function TabMailboxes({ onOpenInboxForMailbox, refreshTrigger }: TabMailb
               setSearch(e.target.value);
               setPage(1);
             }}
-            placeholder="Tìm theo tên hiển thị, email, nhãn (tag), ghi chú..."
-            className="w-full rounded-lg border border-zinc-200 bg-transparent py-2.5 pl-10 pr-4 text-sm text-zinc-900 dark:border-zinc-700 dark:text-zinc-100 outline-none focus:border-zinc-900 dark:focus:border-zinc-300 transition-colors"
+            placeholder="Search by name, address, tag..."
+            className="w-full rounded-lg border border-zinc-200 bg-transparent py-2 sm:py-2.5 pl-10 pr-4 text-xs sm:text-sm text-zinc-900 dark:border-zinc-700 dark:text-zinc-100 outline-none focus:border-zinc-900 dark:focus:border-zinc-300 transition-colors"
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 sm:gap-3">
           <select
             value={statusFilter}
             onChange={(e) => {
               setStatusFilter(e.target.value);
               setPage(1);
             }}
-            className="rounded-lg border border-zinc-200 bg-transparent px-3.5 py-2.5 text-sm text-zinc-900 dark:border-zinc-700 dark:text-zinc-100 outline-none"
+            className="w-full sm:w-auto rounded-lg border border-zinc-200 bg-transparent px-3 py-2 text-xs sm:text-sm text-zinc-900 dark:border-zinc-700 dark:text-zinc-100 outline-none"
           >
-            <option value="" className="dark:bg-zinc-900">Tất cả trạng thái</option>
-            <option value="active" className="dark:bg-zinc-900">Đang hoạt động</option>
-            <option value="paused" className="dark:bg-zinc-900">Tạm dừng</option>
-            <option value="expired" className="dark:bg-zinc-900">Hết hạn</option>
+            <option value="" className="dark:bg-zinc-900">All Statuses</option>
+            <option value="active" className="dark:bg-zinc-900">Active</option>
+            <option value="paused" className="dark:bg-zinc-900">Paused</option>
+            <option value="expired" className="dark:bg-zinc-900">Expired</option>
           </select>
 
           <input
@@ -317,47 +327,48 @@ export function TabMailboxes({ onOpenInboxForMailbox, refreshTrigger }: TabMailb
               setTagFilter(e.target.value);
               setPage(1);
             }}
-            placeholder="Lọc nhãn (Tag)..."
-            className="w-36 rounded-lg border border-zinc-200 bg-transparent px-3.5 py-2.5 text-sm text-zinc-900 dark:border-zinc-700 dark:text-zinc-100 outline-none"
+            placeholder="Filter tag..."
+            className="w-full sm:w-36 rounded-lg border border-zinc-200 bg-transparent px-3 py-2 text-xs sm:text-sm text-zinc-900 dark:border-zinc-700 dark:text-zinc-100 outline-none"
           />
 
           <button
+            type="button"
             onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200 transition-all shadow-xs active:scale-[0.98]"
+            className="col-span-2 sm:col-auto w-full sm:w-auto flex items-center justify-center gap-1.5 rounded-lg bg-zinc-900 px-3.5 py-2 text-xs sm:text-sm font-semibold text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200 transition-all shadow-xs active:scale-[0.98] cursor-pointer"
           >
             <Plus className="h-4 w-4" />
-            <span>+ Tạo 1 mail mới</span>
+            <span>Create Mailbox</span>
           </button>
         </div>
       </div>
 
       {/* Bulk Action Toolbar if selected */}
       {selectedIds.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-900/15 bg-zinc-100 p-3 dark:border-zinc-800 dark:bg-zinc-900 animate-in fade-in">
-          <div className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
-            Đã chọn <span className="text-zinc-900 dark:text-white font-bold">{selectedIds.length}</span> hộp thư
+        <div className="flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 rounded-xl border border-zinc-900/15 bg-zinc-100 p-2.5 sm:p-3 dark:border-zinc-800 dark:bg-zinc-900 animate-in fade-in">
+          <div className="text-xs sm:text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+            Selected <span className="text-zinc-900 dark:text-white font-bold">{selectedIds.length}</span> mailboxes
           </div>
-          <div className="flex items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={handleBulkCopy}
-              className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 transition-all active:scale-[0.98]"
+              className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 transition-all active:scale-[0.98] cursor-pointer"
             >
               <Copy className="h-3.5 w-3.5" />
-              <span>Chép địa chỉ</span>
+              <span>Copy Addresses</span>
             </button>
             <button
               onClick={handleExportSelected}
-              className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 transition-all active:scale-[0.98]"
+              className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-2.5 sm:px-3 py-1.5 text-xs sm:text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 transition-all active:scale-[0.98] cursor-pointer"
             >
               <Download className="h-3.5 w-3.5" />
-              <span>Xuất TXT</span>
+              <span>Export TXT</span>
             </button>
             <button
               onClick={handleBulkDelete}
-              className="flex items-center gap-1.5 rounded-lg bg-rose-600 px-3.5 py-1.5 text-sm font-medium text-white hover:bg-rose-500 transition-all active:scale-[0.98]"
+              className="flex items-center gap-1.5 rounded-lg bg-rose-600 px-3 py-1.5 text-xs sm:text-sm font-medium text-white hover:bg-rose-500 transition-all active:scale-[0.98] cursor-pointer"
             >
               <Trash2 className="h-3.5 w-3.5" />
-              <span>Xóa đã chọn</span>
+              <span>Delete Selected</span>
             </button>
           </div>
         </div>
@@ -366,145 +377,184 @@ export function TabMailboxes({ onOpenInboxForMailbox, refreshTrigger }: TabMailb
       {/* Data Table */}
       <div className="rounded-xl border border-zinc-200 bg-white shadow-xs dark:border-zinc-800 dark:bg-zinc-900/50 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+          <table className="w-full text-left text-xs sm:text-sm">
             <thead className="border-b border-zinc-200 bg-zinc-50/80 font-semibold text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/80 dark:text-zinc-300">
               <tr>
-                <th className="w-12 px-4 py-3.5">
+                <th className="w-10 sm:w-12 px-3 sm:px-4 py-3 sm:py-3.5 whitespace-nowrap">
                   <button
                     onClick={handleSelectAll}
-                    className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors"
+                    disabled={selectableItems.length === 0}
+                    className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors disabled:opacity-30 cursor-pointer"
+                    title={selectableItems.length === 0 ? "No selectable mailboxes" : "Select all non-primary"}
                   >
-                    {selectedIds.length > 0 && selectedIds.length === items.length ? (
-                      <CheckSquare className="h-4.5 w-4.5 text-zinc-900 dark:text-zinc-100" />
+                    {selectableItems.length > 0 && selectedIds.length === selectableItems.length ? (
+                      <CheckSquare className="h-4 sm:h-4.5 w-4 sm:w-4.5 text-zinc-900 dark:text-zinc-100" />
                     ) : (
-                      <Square className="h-4.5 w-4.5" />
+                      <Square className="h-4 sm:h-4.5 w-4 sm:w-4.5" />
                     )}
                   </button>
                 </th>
-                <th className="px-4 py-3.5">Hộp thư & Tên gọi</th>
-                <th className="px-4 py-3.5">Nhãn / Ghi chú</th>
-                <th className="px-4 py-3.5">Ngày tạo</th>
-                <th className="px-4 py-3.5 text-right">Thao tác</th>
+                <th className="px-3 sm:px-4 py-3 sm:py-3.5 whitespace-nowrap">Mailbox &amp; Display Name</th>
+                <th className="px-3 sm:px-4 py-3 sm:py-3.5 whitespace-nowrap">Tag / Note</th>
+                <th className="px-3 sm:px-4 py-3 sm:py-3.5 whitespace-nowrap">Created Date</th>
+                <th className="px-3 sm:px-4 py-3 sm:py-3.5 text-right whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/80">
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-sm text-zinc-400">
-                    Đang tải dữ liệu...
+                  <td colSpan={5} className="py-12 text-center text-xs sm:text-sm text-zinc-400">
+                    Loading data...
                   </td>
                 </tr>
               ) : items.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-sm text-zinc-400">
-                    Không tìm thấy hộp thư nào. Bấm nút &quot;+ Tạo 1 mail mới&quot; phía trên để bắt đầu.
+                  <td colSpan={5} className="py-12 text-center text-xs sm:text-sm text-zinc-400">
+                    No mailboxes found. Click &quot;Create Mailbox&quot; above to get started.
                   </td>
                 </tr>
               ) : (
                 items.map((item) => {
                   const isChecked = selectedIds.includes(item.id);
+                  const isPrimary = item.is_primary === 1;
+
                   return (
                     <tr
                       key={item.id}
-                      className="hover:bg-zinc-50 dark:hover:bg-zinc-800/40 transition-colors"
+                      className={`hover:bg-zinc-50 dark:hover:bg-zinc-800/40 transition-colors ${
+                        isPrimary ? "bg-indigo-50/20 dark:bg-indigo-950/10" : ""
+                      }`}
                     >
-                      <td className="px-4 py-3.5">
-                        <button
-                          onClick={() => toggleSelectOne(item.id)}
-                          className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
-                        >
-                          {isChecked ? (
-                            <CheckSquare className="h-4.5 w-4.5 text-zinc-900 dark:text-zinc-100" />
-                          ) : (
-                            <Square className="h-4.5 w-4.5" />
-                          )}
-                        </button>
+                      <td className="px-3 sm:px-4 py-3 sm:py-3.5 whitespace-nowrap">
+                        {isPrimary ? (
+                          <span
+                            title="Primary account mailbox is protected and cannot be deleted"
+                            className="inline-flex text-zinc-300 dark:text-zinc-700 cursor-not-allowed"
+                          >
+                            <Square className="h-4 sm:h-4.5 w-4 sm:w-4.5 opacity-30" />
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => toggleSelectOne(item.id)}
+                            className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer"
+                          >
+                            {isChecked ? (
+                              <CheckSquare className="h-4 sm:h-4.5 w-4 sm:w-4.5 text-zinc-900 dark:text-zinc-100" />
+                            ) : (
+                              <Square className="h-4 sm:h-4.5 w-4 sm:w-4.5" />
+                            )}
+                          </button>
+                        )}
                       </td>
-                      <td className="px-4 py-3.5">
-                        <div>
-                          {/* Display Name Prominently */}
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-sm text-zinc-900 dark:text-zinc-100">
+                      <td className="px-3 sm:px-4 py-3 sm:py-3.5">
+                        <div className="min-w-[180px]">
+                          {/* Display Name Prominently & Badges */}
+                          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                            <span className="font-bold text-xs sm:text-sm text-zinc-900 dark:text-zinc-100">
                               {item.name || item.local_part}
                             </span>
+                            {isPrimary && (
+                              <span className="inline-flex items-center gap-1 rounded bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/70 dark:border-indigo-800/60 px-1.5 py-0.5 text-[10px] sm:text-[11px] font-bold text-indigo-600 dark:text-indigo-400">
+                                <ShieldCheck className="h-3 w-3" />
+                                <span>Primary</span>
+                              </span>
+                            )}
                             {item.name && (
-                              <span className="rounded bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.2 text-[11px] font-medium text-zinc-500">
-                                Đặt tên
+                              <span className="rounded bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.2 text-[10px] sm:text-[11px] font-medium text-zinc-500">
+                                Named
                               </span>
                             )}
                             <button
                               onClick={() => openEditModal(item)}
-                              title="Chỉnh sửa tên / nhãn"
-                              className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-0.5"
+                              title="Edit name / tag"
+                              className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-0.5 cursor-pointer"
                             >
                               <Edit2 className="h-3 w-3" />
                             </button>
                           </div>
 
                           {/* Email address with copy */}
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className="font-mono text-xs text-zinc-500 dark:text-zinc-400">
+                          <div className="flex items-center gap-1.5 sm:gap-2 mt-0.5">
+                            <span className="font-mono text-[11px] sm:text-xs text-zinc-500 dark:text-zinc-400">
                               {item.address}
                             </span>
                             <button
                               onClick={() => copyAddress(item.address, item.id)}
-                              title="Sao chép địa chỉ"
-                              className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 transition-colors"
+                              title="Copy email address"
+                              className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-0.5 cursor-pointer"
                             >
                               {copiedId === item.id ? (
-                                <Check className="h-3.5 w-3.5 text-emerald-500" />
+                                <Check className="h-3 w-3 text-emerald-500" />
                               ) : (
-                                <Copy className="h-3.5 w-3.5" />
+                                <Copy className="h-3 w-3" />
                               )}
                             </button>
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3.5">
-                        <div className="flex flex-col gap-0.5">
+
+                      <td className="px-3 sm:px-4 py-3 sm:py-3.5">
+                        <div className="flex flex-col gap-1 max-w-[150px]">
                           {item.tag && (
-                            <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400">
-                              <Tag className="h-3 w-3" />
-                              #{item.tag}
+                            <span className="inline-flex items-center gap-1 self-start rounded-full bg-blue-50 px-2 py-0.5 text-[10px] sm:text-[11px] font-semibold text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">
+                              <Tag className="h-2.5 w-2.5" />
+                              {item.tag}
                             </span>
                           )}
                           {item.note && (
-                            <span className="text-xs text-zinc-500 truncate max-w-[180px]">
+                            <span className="truncate text-[11px] text-zinc-400" title={item.note}>
                               {item.note}
                             </span>
                           )}
-                          {!item.tag && !item.note && <span className="text-zinc-400 text-xs">-</span>}
+                          {!item.tag && !item.note && (
+                            <span className="text-[11px] text-zinc-300 dark:text-zinc-600">-</span>
+                          )}
                         </div>
                       </td>
-                      <td className="px-4 py-3.5 text-xs text-zinc-500">
+
+                      <td className="px-3 sm:px-4 py-3 sm:py-3.5 whitespace-nowrap text-xs text-zinc-500 font-medium">
                         {formatDate(item.created_at)}
                       </td>
-                      <td className="px-4 py-3.5 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
+
+                      <td className="px-3 sm:px-4 py-3 sm:py-3.5 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1 sm:gap-1.5">
                           <button
                             onClick={() => onOpenInboxForMailbox(item.address)}
-                            title="Mở hộp thư này"
-                            className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/30 transition-colors"
+                            title="Open Inbox"
+                            className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-blue-600 dark:text-zinc-400 dark:hover:bg-zinc-800 cursor-pointer"
                           >
                             <Inbox className="h-4 w-4" />
-                            <span>Xem thư</span>
                           </button>
 
-                          <button
-                            onClick={() => toggleStatus(item.id, item.status)}
-                            title={item.status === "active" ? "Tạm dừng nhận mail" : "Kích hoạt nhận mail"}
-                            className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200 transition-colors"
-                          >
-                            <Power className="h-4 w-4" />
-                          </button>
-
-                          <button
-                            onClick={() => deleteSingle(item.id)}
-                            title="Xóa hộp thư"
-                            className="rounded-lg p-2 text-zinc-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30 dark:hover:text-rose-400 transition-colors"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                          {isPrimary ? (
+                            <span
+                              title="Primary mailbox is permanently active and cannot be deleted"
+                              className="inline-flex items-center text-[11px] font-medium text-zinc-400 dark:text-zinc-500 px-2 select-none"
+                            >
+                              Default
+                            </span>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => toggleStatus(item.id, item.status)}
+                                title={item.status === "active" ? "Pause mailbox" : "Activate mailbox"}
+                                className={`rounded-lg p-1.5 cursor-pointer ${
+                                  item.status === "active"
+                                    ? "text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/50"
+                                    : "text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-950/50"
+                                }`}
+                              >
+                                <Power className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => deleteSingle(item.id)}
+                                title="Delete mailbox"
+                                className="rounded-lg p-1.5 text-zinc-400 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/50 cursor-pointer"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -515,125 +565,131 @@ export function TabMailboxes({ onOpenInboxForMailbox, refreshTrigger }: TabMailb
           </table>
         </div>
 
-        {/* Pagination Footer */}
-        <div className="flex items-center justify-between border-t border-zinc-100 px-5 py-4 dark:border-zinc-800">
-          <div className="text-sm text-zinc-500">
-            Tổng cộng: <span className="font-bold text-zinc-900 dark:text-zinc-100">{total}</span> hộp thư
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-zinc-500">
-              Trang {page} / {totalPages}
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
+            <span className="text-xs text-zinc-500">
+              Total <span className="font-semibold text-zinc-900 dark:text-zinc-100">{total}</span> mailboxes (Page {page}/{totalPages})
             </span>
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page <= 1}
-              className="rounded-lg border border-zinc-200 p-2 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 disabled:opacity-40 transition-colors"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page >= totalPages}
-              className="rounded-lg border border-zinc-200 p-2 text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 disabled:opacity-40 transition-colors"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="rounded-lg border border-zinc-200 p-1 text-zinc-600 hover:bg-zinc-100 disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-300 cursor-pointer"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <button
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                className="rounded-lg border border-zinc-200 p-1 text-zinc-600 hover:bg-zinc-100 disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-300 cursor-pointer"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Quick Create Single Mail Modal */}
+      {/* CREATE SINGLE MAILBOX MODAL */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in">
-          <div className="w-full max-w-lg rounded-xl border border-zinc-200 bg-white p-6 shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
-            <div className="flex items-center justify-between border-b border-zinc-100 pb-4 dark:border-zinc-800">
-              <div className="flex items-center gap-2">
-                <Plus className="h-5 w-5 text-zinc-900 dark:text-zinc-100" />
-                <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
-                  Tạo 1 Hộp Thư Mới (Có Đặt Tên)
-                </h3>
-              </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in">
+          <div className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-6 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900">
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800">
+              <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
+                Create 1 New Mailbox
+              </h3>
               <button
                 onClick={() => setShowCreateModal(false)}
-                className="rounded-lg p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateSingle} className="mt-5 space-y-4">
+            <form onSubmit={handleCreateSingle} className="mt-4 space-y-4">
               <div>
-                <label className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
-                  Tên gợi nhớ / Tên hiển thị
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                  Email Prefix (Local Part)
+                </label>
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      value={newLocal}
+                      onChange={(e) => setNewLocal(e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, ""))}
+                      placeholder="e.g. dev.testing or user123"
+                      className="w-full rounded-xl border border-zinc-200 bg-zinc-50/70 pl-3.5 pr-28 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:bg-white outline-none dark:border-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-100 font-mono"
+                    />
+                    <span className="absolute right-3 top-2.5 text-xs text-zinc-400 font-mono select-none">
+                      @mailtion.com
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setNewLocal(`box_${Math.random().toString(36).substring(2, 8)}`)}
+                    className="flex items-center gap-1 rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 cursor-pointer"
+                    title="Generate random name"
+                  >
+                    <Dices className="h-3.5 w-3.5" />
+                    <span>Random</span>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                  Display Name (Optional)
                 </label>
                 <input
                   type="text"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
-                  placeholder="Ví dụ: Facebook Chính, TikTok Shop, Shopee..."
-                  className="mt-1.5 w-full rounded-lg border border-zinc-200 bg-transparent px-3.5 py-2.5 text-sm text-zinc-900 dark:border-zinc-700 dark:text-zinc-100 outline-none focus:border-zinc-900 dark:focus:border-zinc-300"
+                  placeholder="e.g. Testing Facebook, Account 1..."
+                  className="w-full rounded-xl border border-zinc-200 bg-zinc-50/70 px-3.5 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:bg-white outline-none dark:border-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-100"
                 />
               </div>
 
               <div>
-                <label className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
-                  Tên hòm thư (Bỏ trống để tạo ngẫu nhiên)
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                  Tag (Optional)
                 </label>
-                <div className="mt-1.5 flex rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden focus-within:border-zinc-900 dark:focus-within:border-zinc-300">
-                  <input
-                    type="text"
-                    value={newLocal}
-                    onChange={(e) => setNewLocal(e.target.value)}
-                    placeholder="myname, nick123..."
-                    className="w-full bg-transparent px-3.5 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none"
-                  />
-                  <span className="flex items-center px-3.5 text-sm text-zinc-500 bg-zinc-50 dark:bg-zinc-800 border-l border-zinc-200 dark:border-zinc-700 font-mono">
-                    @mailtion.com
-                  </span>
-                </div>
+                <input
+                  type="text"
+                  value={newTag}
+                  onChange={(e) => setNewTag(e.target.value)}
+                  placeholder="e.g. social, work, verify..."
+                  className="w-full rounded-xl border border-zinc-200 bg-zinc-50/70 px-3.5 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:bg-white outline-none dark:border-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-100"
+                />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
-                    Nhãn (Tag)
-                  </label>
-                  <input
-                    type="text"
-                    value={newTag}
-                    onChange={(e) => setNewTag(e.target.value)}
-                    placeholder="shopee, fb..."
-                    className="mt-1.5 w-full rounded-lg border border-zinc-200 bg-transparent px-3.5 py-2.5 text-sm text-zinc-900 dark:border-zinc-700 dark:text-zinc-100 outline-none focus:border-zinc-900 dark:focus:border-zinc-300"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
-                    Ghi chú
-                  </label>
-                  <input
-                    type="text"
-                    value={newNote}
-                    onChange={(e) => setNewNote(e.target.value)}
-                    placeholder="Mục đích..."
-                    className="mt-1.5 w-full rounded-lg border border-zinc-200 bg-transparent px-3.5 py-2.5 text-sm text-zinc-900 dark:border-zinc-700 dark:text-zinc-100 outline-none focus:border-zinc-900 dark:focus:border-zinc-300"
-                  />
-                </div>
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                  Notes (Optional)
+                </label>
+                <textarea
+                  rows={2}
+                  value={newNote}
+                  onChange={(e) => setNewNote(e.target.value)}
+                  placeholder="Notes on usage purpose..."
+                  className="w-full rounded-xl border border-zinc-200 bg-zinc-50/70 px-3.5 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:bg-white outline-none dark:border-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-100"
+                />
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+              <div className="flex items-center justify-end gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 transition-colors"
+                  className="rounded-xl border border-zinc-200 px-4 py-2 text-xs font-semibold text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 cursor-pointer"
                 >
-                  Hủy
+                  Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isCreating}
-                  className="rounded-lg bg-zinc-900 px-5 py-2 text-sm font-semibold text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200 transition-all shadow-xs active:scale-[0.98] disabled:opacity-50"
+                  className="flex items-center gap-1.5 rounded-xl bg-zinc-900 px-4 py-2 text-xs font-semibold text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200 disabled:opacity-50 cursor-pointer"
                 >
-                  {isCreating ? "Đang tạo..." : "Tạo hộp thư ngay"}
+                  {isCreating ? "Creating..." : "Confirm Create"}
                 </button>
               </div>
             </form>
@@ -641,88 +697,99 @@ export function TabMailboxes({ onOpenInboxForMailbox, refreshTrigger }: TabMailb
         </div>
       )}
 
-      {/* Edit Name & Info Modal */}
+      {/* EDIT MODAL */}
       {editingItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs animate-in fade-in">
-          <div className="w-full max-w-md rounded-xl border border-zinc-200 bg-white p-6 shadow-xl dark:border-zinc-800 dark:bg-zinc-900">
-            <div className="flex items-center justify-between border-b border-zinc-100 pb-4 dark:border-zinc-800">
-              <div className="flex items-center gap-2">
-                <Edit2 className="h-4 w-4 text-zinc-900 dark:text-zinc-100" />
-                <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
-                  Đổi Tên & Thông Tin Hộp Thư
-                </h3>
-              </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in">
+          <div className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-6 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900">
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800">
+              <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
+                Edit Mailbox
+              </h3>
               <button
                 onClick={() => setEditingItem(null)}
-                className="rounded-lg p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveEdit} className="mt-5 space-y-4">
+            {editingItem.is_primary === 1 && (
+              <div className="mt-3 rounded-xl border border-indigo-200 bg-indigo-50/70 p-3 text-xs text-indigo-900 dark:border-indigo-900/60 dark:bg-indigo-950/40 dark:text-indigo-300">
+                <p className="font-bold flex items-center gap-1 mb-0.5">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  Primary Account Mailbox
+                </p>
+                <p>This email address was created with your account and is permanently protected. Address cannot be modified or deleted. You can customize its display name, tag, and notes below.</p>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveEdit} className="mt-4 space-y-4">
               <div>
-                <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wider">
-                  Địa chỉ email
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                  Email Address
                 </label>
-                <div className="mt-1 font-mono text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                  {editingItem.address}
-                </div>
+                <input
+                  type="text"
+                  readOnly
+                  disabled
+                  value={editingItem.address}
+                  className="w-full rounded-xl border border-zinc-200 bg-zinc-100 px-3.5 py-2 text-xs text-zinc-500 font-mono dark:border-zinc-700 dark:bg-zinc-800 select-all cursor-not-allowed"
+                />
               </div>
 
               <div>
-                <label className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
-                  Tên hiển thị / Tên gợi nhớ
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                  Display Name
                 </label>
                 <input
                   type="text"
                   value={editNameValue}
                   onChange={(e) => setEditNameValue(e.target.value)}
-                  placeholder="Nhập tên để dễ nhận biết..."
-                  className="mt-1.5 w-full rounded-lg border border-zinc-200 bg-transparent px-3.5 py-2.5 text-sm text-zinc-900 dark:border-zinc-700 dark:text-zinc-100 outline-none focus:border-zinc-900 dark:focus:border-zinc-300"
+                  placeholder="e.g. Account Facebook, Netflix..."
+                  className="w-full rounded-xl border border-zinc-200 bg-zinc-50/70 px-3.5 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:bg-white outline-none dark:border-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-100"
                 />
               </div>
 
               <div>
-                <label className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
-                  Nhãn (Tag)
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                  Tag
                 </label>
                 <input
                   type="text"
                   value={editTagValue}
                   onChange={(e) => setEditTagValue(e.target.value)}
-                  placeholder="Tag phân loại..."
-                  className="mt-1.5 w-full rounded-lg border border-zinc-200 bg-transparent px-3.5 py-2.5 text-sm text-zinc-900 dark:border-zinc-700 dark:text-zinc-100 outline-none focus:border-zinc-900 dark:focus:border-zinc-300"
+                  placeholder="e.g. social, work, test..."
+                  className="w-full rounded-xl border border-zinc-200 bg-zinc-50/70 px-3.5 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:bg-white outline-none dark:border-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-100"
                 />
               </div>
 
               <div>
-                <label className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
-                  Ghi chú
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                  Note
                 </label>
-                <input
-                  type="text"
+                <textarea
+                  rows={2}
                   value={editNoteValue}
                   onChange={(e) => setEditNoteValue(e.target.value)}
-                  placeholder="Ghi chú thêm..."
-                  className="mt-1.5 w-full rounded-lg border border-zinc-200 bg-transparent px-3.5 py-2.5 text-sm text-zinc-900 dark:border-zinc-700 dark:text-zinc-100 outline-none focus:border-zinc-900 dark:focus:border-zinc-300"
+                  placeholder="Additional notes..."
+                  className="w-full rounded-xl border border-zinc-200 bg-zinc-50/70 px-3.5 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:bg-white outline-none dark:border-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-100"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+              <div className="flex items-center justify-end gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setEditingItem(null)}
-                  className="rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 transition-colors"
+                  className="rounded-xl border border-zinc-200 px-4 py-2 text-xs font-semibold text-zinc-600 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-400 cursor-pointer"
                 >
-                  Hủy
+                  Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSavingEdit}
-                  className="rounded-lg bg-zinc-900 px-5 py-2 text-sm font-semibold text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200 transition-all shadow-xs active:scale-[0.98] disabled:opacity-50"
+                  className="flex items-center gap-1.5 rounded-xl bg-zinc-900 px-4 py-2 text-xs font-semibold text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200 disabled:opacity-50 cursor-pointer"
                 >
-                  {isSavingEdit ? "Đang lưu..." : "Lưu thay đổi"}
+                  {isSavingEdit ? "Saving..." : "Save Changes"}
                 </button>
               </div>
             </form>
@@ -732,3 +799,5 @@ export function TabMailboxes({ onOpenInboxForMailbox, refreshTrigger }: TabMailb
     </div>
   );
 }
+
+export default TabMailboxes;

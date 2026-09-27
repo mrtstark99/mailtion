@@ -29,8 +29,8 @@ interface MessageItem {
 interface TabOverviewProps {
   stats: StatsData | null;
   recentMessages: MessageItem[];
-  onNavigateTab: (tab: string) => void;
-  onOpenMessage: (id: string) => void;
+  onSelectTab: (tab: string) => void;
+  onOpenInboxForMailbox: (address: string) => void;
   onQuickGenerate: (count: number) => void;
 }
 
@@ -43,7 +43,7 @@ function Avatar({ name, addr }: { name: string | null; addr: string }) {
   const idx = addr.charCodeAt(0) % colors.length;
   return (
     <div
-      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white ${colors[idx]}`}
+      className={`flex h-8 w-8 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-full text-xs sm:text-sm font-bold text-white ${colors[idx]}`}
     >
       {letter}
     </div>
@@ -53,82 +53,81 @@ function Avatar({ name, addr }: { name: string | null; addr: string }) {
 export function TabOverview({
   stats,
   recentMessages,
-  onNavigateTab,
-  onOpenMessage,
+  onSelectTab,
+  onOpenInboxForMailbox,
   onQuickGenerate,
 }: TabOverviewProps) {
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 font-sans">
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-xs dark:border-zinc-800 dark:bg-zinc-900/50 hover:border-zinc-300 dark:hover:border-zinc-700 transition-all duration-200">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-4">
+        <div className="rounded-xl border border-zinc-200 bg-white p-3.5 sm:p-5 shadow-xs dark:border-zinc-800 dark:bg-zinc-900/50 hover:border-zinc-300 dark:hover:border-zinc-700 transition-all duration-200">
           <div className="flex items-center justify-between text-zinc-500 dark:text-zinc-400">
-            <span className="text-xs font-bold uppercase tracking-wider">Hộp thư</span>
-            <Mail className="h-4.5 w-4.5 text-zinc-600 dark:text-zinc-400" />
+            <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider">Mailboxes</span>
+            <Mail className="h-4 w-4 sm:h-4.5 sm:w-4.5 text-zinc-600 dark:text-zinc-400" />
           </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold tracking-tight text-zinc-900 dark:text-zinc-100">
+          <div className="mt-2 sm:mt-3 flex items-baseline gap-1.5 sm:gap-2">
+            <span className="text-2xl sm:text-3xl font-extrabold tracking-tight text-zinc-900 dark:text-zinc-100">
               {stats?.activeMailboxes ?? 0}
             </span>
-            <span className="text-xs sm:text-sm text-zinc-500 font-medium">/ {stats?.totalMailboxes ?? 0} tổng</span>
+            <span className="text-[11px] sm:text-sm text-zinc-500 font-medium">/ {stats?.totalMailboxes ?? 0}</span>
           </div>
         </div>
 
-        <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-xs dark:border-zinc-800 dark:bg-zinc-900/50 hover:border-zinc-300 dark:hover:border-zinc-700 transition-all duration-200">
+        <div className="rounded-xl border border-zinc-200 bg-white p-3.5 sm:p-5 shadow-xs dark:border-zinc-800 dark:bg-zinc-900/50 hover:border-zinc-300 dark:hover:border-zinc-700 transition-all duration-200">
           <div className="flex items-center justify-between text-zinc-500 dark:text-zinc-400">
-            <span className="text-xs font-bold uppercase tracking-wider">Nhận hôm nay</span>
-            <Inbox className="h-4.5 w-4.5 text-emerald-500" />
+            <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider">Today</span>
+            <Inbox className="h-4 w-4 sm:h-4.5 sm:w-4.5 text-emerald-500" />
           </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold tracking-tight text-zinc-900 dark:text-zinc-100">
+          <div className="mt-2 sm:mt-3 flex items-baseline gap-1.5 sm:gap-2">
+            <span className="text-2xl sm:text-3xl font-extrabold tracking-tight text-zinc-900 dark:text-zinc-100">
               {stats?.todayMessages ?? 0}
             </span>
-            <span className="text-xs sm:text-sm text-emerald-600 dark:text-emerald-400 font-semibold">tin mới</span>
+            <span className="text-[11px] sm:text-sm text-emerald-600 dark:text-emerald-400 font-semibold">new</span>
           </div>
         </div>
 
-        <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-xs dark:border-zinc-800 dark:bg-zinc-900/50 hover:border-zinc-300 dark:hover:border-zinc-700 transition-all duration-200">
+        <div className="col-span-2 sm:col-span-1 rounded-xl border border-zinc-200 bg-white p-3.5 sm:p-5 shadow-xs dark:border-zinc-800 dark:bg-zinc-900/50 hover:border-zinc-300 dark:hover:border-zinc-700 transition-all duration-200">
           <div className="flex items-center justify-between text-zinc-500 dark:text-zinc-400">
-            <span className="text-xs font-bold uppercase tracking-wider">Chưa đọc</span>
+            <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider">Unread</span>
             <span className="flex h-2.5 w-2.5 rounded-full bg-blue-500 animate-pulse" />
           </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold tracking-tight text-zinc-900 dark:text-zinc-100">
+          <div className="mt-2 sm:mt-3 flex items-baseline gap-1.5 sm:gap-2">
+            <span className="text-2xl sm:text-3xl font-extrabold tracking-tight text-zinc-900 dark:text-zinc-100">
               {stats?.unreadMessages ?? 0}
             </span>
-            <span className="text-xs sm:text-sm text-zinc-500 font-medium">/ {stats?.totalMessages ?? 0} tổng</span>
+            <span className="text-[11px] sm:text-sm text-zinc-500 font-medium">/ {stats?.totalMessages ?? 0} total</span>
           </div>
         </div>
       </div>
 
       {/* Quick Action Bar */}
-      <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-xs dark:border-zinc-800 dark:bg-zinc-900/40">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-2.5">
-            <Zap className="h-5 w-5 text-amber-500" />
-            <span className="text-base font-bold text-zinc-800 dark:text-zinc-200">
-              Thao tác nhanh
+      <div className="rounded-xl border border-zinc-200 bg-white p-3.5 sm:p-5 shadow-xs dark:border-zinc-800 dark:bg-zinc-900/40">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+          <div className="flex items-center gap-2">
+            <Zap className="h-4.5 w-4.5 text-amber-500" />
+            <span className="text-sm sm:text-base font-bold text-zinc-800 dark:text-zinc-200">
+              Quick Actions
             </span>
           </div>
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 sm:gap-2.5 w-full sm:w-auto">
             <button
               onClick={() => onQuickGenerate(20)}
-              className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 transition-all active:scale-[0.98]"
+              className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs sm:text-sm font-semibold text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 transition-all active:scale-[0.98] text-center"
             >
-              + Tạo nhanh 20 mail
+              + Generate 20
             </button>
             <button
               onClick={() => onQuickGenerate(50)}
-              className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 transition-all active:scale-[0.98]"
+              className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs sm:text-sm font-semibold text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 transition-all active:scale-[0.98] text-center"
             >
-              + Tạo nhanh 50 mail
+              + Generate 50
             </button>
             <button
-              onClick={() => onNavigateTab("generator")}
-              className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100 transition-all shadow-xs active:scale-[0.98]"
+              onClick={() => onSelectTab("generator")}
+              className="col-span-2 sm:col-auto rounded-lg bg-zinc-900 px-3.5 py-2 text-xs sm:text-sm font-semibold text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100 transition-all shadow-xs active:scale-[0.98] text-center"
             >
-              Tùy chỉnh tạo mail &rarr;
+              Custom Generator &rarr;
             </button>
           </div>
         </div>
@@ -136,25 +135,25 @@ export function TabOverview({
 
       {/* Recent Activity / Inbound Feed */}
       <div className="rounded-xl border border-zinc-200 bg-white shadow-xs dark:border-zinc-800 dark:bg-zinc-900/40 overflow-hidden">
-        <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
-          <div className="flex items-center gap-2.5">
-            <Inbox className="h-4.5 w-4.5 text-zinc-600 dark:text-zinc-400" />
-            <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
-              Email nhận gần đây
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-zinc-200 px-4 sm:px-5 py-3 sm:py-4 dark:border-zinc-800 gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-2">
+            <Inbox className="h-4 w-4 sm:h-4.5 sm:w-4.5 text-zinc-600 dark:text-zinc-400" />
+            <h3 className="text-sm sm:text-base font-bold text-zinc-900 dark:text-zinc-100">
+              Recent Inbound Messages
             </h3>
           </div>
           <button
-            onClick={() => onNavigateTab("inbox")}
-            className="flex items-center gap-1.5 text-sm font-semibold text-blue-600 hover:text-blue-500 dark:text-blue-400 transition-colors"
+            onClick={() => onSelectTab("inbox")}
+            className="flex items-center gap-1 text-xs sm:text-sm font-semibold text-blue-600 hover:text-blue-500 dark:text-blue-400 transition-colors self-start sm:self-auto"
           >
-            <span>Xem tất cả hộp thư</span>
-            <ArrowRight className="h-4 w-4" />
+            <span>View All Messages</span>
+            <ArrowRight className="h-3.5 w-3.5" />
           </button>
         </div>
 
         {recentMessages.length === 0 ? (
-          <div className="py-14 text-center text-sm text-zinc-500 dark:text-zinc-400">
-            Chưa có email nào đến. Bạn có thể bấm nút &quot;Thử nhận mail&quot; phía trên để kiểm tra ngay.
+          <div className="py-12 text-center text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 px-4">
+            No incoming messages yet. Emails sent to your mailboxes will appear here automatically.
           </div>
         ) : (
           <div className="divide-y divide-zinc-100 dark:divide-zinc-800/80">
@@ -163,8 +162,8 @@ export function TabOverview({
               return (
                 <div
                   key={msg.id}
-                  onClick={() => onOpenMessage(msg.id)}
-                  className={`flex cursor-pointer items-start gap-3 px-5 py-3.5 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/40 ${
+                  onClick={() => onOpenInboxForMailbox(msg.to_addr)}
+                  className={`flex cursor-pointer items-start gap-2.5 sm:gap-3 px-3.5 sm:px-5 py-3 sm:py-3.5 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/40 ${
                     isUnread ? "bg-white dark:bg-zinc-900" : ""
                   }`}
                 >
@@ -172,7 +171,7 @@ export function TabOverview({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
                       <span
-                        className={`truncate text-sm ${
+                        className={`truncate text-xs sm:text-sm ${
                           isUnread
                             ? "font-bold text-zinc-900 dark:text-zinc-100"
                             : "font-medium text-zinc-500 dark:text-zinc-400"
@@ -180,83 +179,36 @@ export function TabOverview({
                       >
                         {msg.from_name || msg.from_addr}
                       </span>
-                      <span className="shrink-0 text-[11px] text-zinc-400 font-medium">
+                      <span className="shrink-0 text-[10px] sm:text-[11px] text-zinc-400 font-medium">
                         {formatDate(msg.created_at)}
                       </span>
                     </div>
                     <div
-                      className={`mt-0.5 truncate text-sm ${
+                      className={`mt-0.5 truncate text-xs sm:text-sm ${
                         isUnread
                           ? "font-semibold text-zinc-800 dark:text-zinc-200"
                           : "text-zinc-500 dark:text-zinc-500"
                       }`}
                     >
-                      {msg.subject || "(Không có tiêu đề)"}
+                      {msg.subject || "(No subject)"}
                     </div>
-                    <div className="mt-0.5 truncate font-mono text-[11px] text-zinc-400">
-                      → {msg.mailbox_name ? <strong className="font-sans text-zinc-500 mr-1">{msg.mailbox_name}</strong> : null}{msg.to_addr}
+                    <div className="mt-1 flex items-center gap-2 text-[11px] text-zinc-400">
+                      <span>To: {msg.to_addr}</span>
+                      {msg.otp_code && (
+                        <span className="rounded bg-amber-100 px-1.5 py-0.2 font-mono font-bold text-amber-800 dark:bg-amber-950/60 dark:text-amber-400">
+                          OTP: {msg.otp_code}
+                        </span>
+                      )}
                     </div>
                   </div>
-                  {isUnread && (
-                    <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-blue-500" />
-                  )}
                 </div>
               );
             })}
           </div>
         )}
       </div>
-
-      {/* Integration & Automation shortcuts */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div
-          onClick={() => onNavigateTab("webhooks")}
-          className="group flex flex-col justify-between rounded-xl border border-zinc-200 bg-white p-4 hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900/30 dark:hover:border-zinc-700 cursor-pointer transition-all shadow-2xs"
-        >
-          <div>
-            <div className="text-xs font-medium text-zinc-500">Thông báo tự động</div>
-            <div className="mt-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-              Telegram & Discord
-            </div>
-          </div>
-          <div className="mt-3 flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400">
-            <span>Cấu hình</span>
-            <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
-          </div>
-        </div>
-
-        <div
-          onClick={() => onNavigateTab("apikeys")}
-          className="group flex flex-col justify-between rounded-xl border border-zinc-200 bg-white p-4 hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900/30 dark:hover:border-zinc-700 cursor-pointer transition-all shadow-2xs"
-        >
-          <div>
-            <div className="text-xs font-medium text-zinc-500">Dành cho Tool / Bot</div>
-            <div className="mt-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-              API Tokens & Automation
-            </div>
-          </div>
-          <div className="mt-3 flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400">
-            <span>Quản lý khóa</span>
-            <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
-          </div>
-        </div>
-
-        <div
-          onClick={() => onNavigateTab("cloudflare")}
-          className="group flex flex-col justify-between rounded-xl border border-zinc-200 bg-white p-4 hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900/30 dark:hover:border-zinc-700 cursor-pointer transition-all shadow-2xs"
-        >
-          <div>
-            <div className="text-xs font-medium text-zinc-500">Hạ tầng Cloudflare</div>
-            <div className="mt-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-              Email Worker Router
-            </div>
-          </div>
-          <div className="mt-3 flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400">
-            <span>Xem hướng dẫn</span>
-            <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
+
+export default TabOverview;

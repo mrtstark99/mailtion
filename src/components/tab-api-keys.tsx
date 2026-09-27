@@ -31,7 +31,7 @@ export function TabApiKeys() {
         setKeys(data || []);
       }
     } catch {
-      toast("Không thể tải danh sách API key", "error");
+      toast("Failed to load API keys", "error");
     } finally {
       setIsLoading(false);
     }
@@ -53,47 +53,50 @@ export function TabApiKeys() {
       });
       const data = await res.json();
       if (res.ok) {
-        toast(`Đã tạo API Key: ${data.item.name}`, "success");
+        toast(`API Key created: ${data.item.name}`, "success");
         setName("");
         fetchKeys();
       } else {
-        toast(data.error || "Lỗi tạo API Key", "error");
+        toast(data.error || "Failed to create API key", "error");
       }
     } catch {
-      toast("Lỗi kết nối", "error");
+      toast("Connection error", "error");
     } finally {
       setIsCreating(false);
     }
   };
 
   const handleDelete = async (id: string, keyName: string) => {
-    if (!confirm(`Bạn có chắc muốn thu hồi khóa "${keyName}"? Các tool dùng khóa này sẽ bị từ chối truy cập.`)) return;
+    if (!confirm(`Are you sure you want to revoke key "${keyName}"? Applications using this key will lose access immediately.`)) return;
     try {
       const res = await fetch(`/api/v1/api-keys?id=${id}`, { method: "DELETE" });
       if (res.ok) {
-        toast("Đã thu hồi API Key");
+        toast("API Key revoked");
         setKeys((prev) => prev.filter((k) => k.id !== id));
       }
     } catch {
-      toast("Không thể xóa khóa", "error");
+      toast("Could not revoke key", "error");
     }
   };
 
   const copyKey = (key: string, id: string) => {
     navigator.clipboard.writeText(key);
     setCopiedKeyId(id);
-    toast("Đã chép API Key");
+    toast("API Key copied to clipboard");
     setTimeout(() => setCopiedKeyId(null), 1500);
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 font-sans">
       {/* Create Key Card */}
       <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-2xs dark:border-zinc-800 dark:bg-zinc-900/50">
         <div className="border-b border-zinc-100 pb-3 dark:border-zinc-800">
           <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-            Khóa API (Dành cho Automation & Tool)
+            API Keys (For Automation &amp; Bots)
           </h2>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+            Authenticate external scripts, automation workers, and bot integrations.
+          </p>
         </div>
 
         <form onSubmit={handleCreate} className="mt-4 flex flex-col sm:flex-row items-center gap-3">
@@ -101,16 +104,16 @@ export function TabApiKeys() {
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Tên ứng dụng / Mục đích (vd: Python Reg Bot, Auto Tool #1)..."
-            className="w-full rounded-lg border border-zinc-200 bg-transparent px-3 py-2 text-xs text-zinc-900 dark:border-zinc-700 dark:text-zinc-100 outline-none focus:border-zinc-900 dark:focus:border-zinc-400"
+            placeholder="Application name / Purpose (e.g. Python Bot, Registration Script)..."
+            className="w-full rounded-lg border border-zinc-200 bg-transparent px-3 py-2 text-xs sm:text-sm text-zinc-900 dark:border-zinc-700 dark:text-zinc-100 outline-none focus:border-zinc-900 dark:focus:border-zinc-400"
           />
           <button
             type="submit"
             disabled={isCreating || !name.trim()}
-            className="flex sm:shrink-0 items-center gap-1.5 rounded-lg bg-zinc-900 px-4 py-2 text-xs font-medium text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200 transition-colors disabled:opacity-50"
+            className="flex sm:shrink-0 items-center gap-1.5 rounded-lg bg-zinc-900 px-4 py-2 text-xs sm:text-sm font-semibold text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200 transition-colors disabled:opacity-50"
           >
             <Plus className="h-3.5 w-3.5" />
-            <span>{isCreating ? "Đang tạo..." : "Tạo khóa mới"}</span>
+            <span>{isCreating ? "Creating..." : "Create Key"}</span>
           </button>
         </form>
       </div>
@@ -119,13 +122,13 @@ export function TabApiKeys() {
       <div className="rounded-xl border border-zinc-200 bg-white shadow-2xs dark:border-zinc-800 dark:bg-zinc-900/50 overflow-hidden">
         <div className="border-b border-zinc-100 px-4 py-3 dark:border-zinc-800">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
-            Danh sách khóa đang hoạt động ({keys.length})
+            Active API Keys ({keys.length})
           </h3>
         </div>
 
         {keys.length === 0 ? (
           <div className="py-8 text-center text-xs text-zinc-400">
-            Chưa có khóa API nào. Hãy tạo một khóa để bắt đầu tích hợp.
+            No API keys created yet. Create one above to get started with API integrations.
           </div>
         ) : (
           <div className="divide-y divide-zinc-100 dark:divide-zinc-800/80">
@@ -133,11 +136,11 @@ export function TabApiKeys() {
               <div key={k.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 gap-3">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-xs text-zinc-900 dark:text-zinc-100">
+                    <span className="font-semibold text-xs sm:text-sm text-zinc-900 dark:text-zinc-100">
                       {k.name}
                     </span>
                     <span className="rounded bg-emerald-500/10 px-1.5 py-0.2 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
-                      Hoạt động
+                      Active
                     </span>
                   </div>
                   <div className="mt-1 flex items-center gap-2">
@@ -147,7 +150,7 @@ export function TabApiKeys() {
                     <button
                       onClick={() => copyKey(k.key, k.id)}
                       className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
-                      title="Sao chép khóa"
+                      title="Copy Key"
                     >
                       {copiedKeyId === k.id ? (
                         <Check className="h-3.5 w-3.5 text-emerald-500" />
@@ -157,50 +160,43 @@ export function TabApiKeys() {
                     </button>
                   </div>
                   <div className="mt-1 text-[11px] text-zinc-400">
-                    Tạo: {formatDate(k.created_at)} • Dùng gần nhất: {k.last_used_at ? formatDate(k.last_used_at) : "Chưa sử dụng"}
+                    <span>Created: {formatDate(k.created_at)}</span>
+                    {k.last_used_at && (
+                      <span className="ml-3">Last used: {formatDate(k.last_used_at)}</span>
+                    )}
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 self-end sm:self-center">
-                  <button
-                    onClick={() => handleDelete(k.id, k.name)}
-                    className="flex items-center gap-1 rounded px-2.5 py-1 text-xs text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/40 transition-colors"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    <span>Thu hồi</span>
-                  </button>
-                </div>
+                <button
+                  onClick={() => handleDelete(k.id, k.name)}
+                  className="self-end sm:self-center flex items-center gap-1 rounded-lg border border-red-200 bg-red-50/50 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-100 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-400"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span>Revoke</span>
+                </button>
               </div>
             ))}
           </div>
         )}
       </div>
 
-      {/* Code Snippets for Bot Developer */}
-      <div className="rounded-xl border border-zinc-200 bg-zinc-900 p-5 text-zinc-100 shadow-2xs dark:border-zinc-800">
-        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-3">
-          <Terminal className="h-4 w-4 text-emerald-400" />
-          <span>Mẫu gọi API tạo mail hàng loạt (cURL & Python)</span>
+      {/* Integration Guide */}
+      <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-2xs dark:border-zinc-800 dark:bg-zinc-900/50 space-y-3">
+        <div className="flex items-center gap-2">
+          <Terminal className="h-4 w-4 text-zinc-500" />
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+            API Quickstart
+          </h3>
         </div>
-
-        <div className="space-y-3 font-mono text-[11px]">
-          <div>
-            <span className="text-zinc-400"># Tạo 50 mail ngẫu nhiên:</span>
-            <pre className="mt-1 overflow-x-auto rounded bg-zinc-950 p-3 text-emerald-400 border border-zinc-800">
-{`curl -X POST https://your-vps.com/api/v1/mailboxes \\
-  -H "Content-Type: application/json" \\
-  -d '{"bulk": true, "mode": "random", "count": 50, "prefix": "bot", "tag": "reg_fb"}'`}
-            </pre>
-          </div>
-
-          <div>
-            <span className="text-zinc-400"># Lấy thư mới nhất và mã OTP của hộp thư:</span>
-            <pre className="mt-1 overflow-x-auto rounded bg-zinc-950 p-3 text-emerald-400 border border-zinc-800">
-{`curl "https://your-vps.com/api/v1/messages?mailboxAddress=bot_123@mailtion.com&limit=1"`}
-            </pre>
-          </div>
-        </div>
+        <p className="text-xs text-zinc-600 dark:text-zinc-400">
+          Include your key in the HTTP header <code className="rounded bg-zinc-100 px-1 py-0.5 font-mono text-[11px] dark:bg-zinc-800">X-API-Key</code>:
+        </p>
+        <pre className="rounded-lg bg-zinc-900 p-3 font-mono text-xs text-zinc-200 overflow-x-auto">
+          curl -H &quot;X-API-Key: YOUR_API_KEY&quot; https://mailtion.com/api/v1/mailboxes
+        </pre>
       </div>
     </div>
   );
 }
+
+export default TabApiKeys;

@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getMessageById, markMessageRead, deleteMessage } from "@/lib/mail-service";
+import { getCurrentUser } from "@/lib/session";
+import { db } from "@/lib/db";
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getCurrentUser(req);
     const { id } = await params;
-    const msg = getMessageById(id);
+    const msg = getMessageById(id, user?.role === "admin" ? undefined : user?.id);
     if (!msg) {
-      return NextResponse.json({ error: "Message not found" }, { status: 404 });
+      return NextResponse.json({ error: "Email not found" }, { status: 404 });
     }
 
     // Auto mark as read when fetched individually
@@ -27,11 +30,28 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getCurrentUser(req);
     const { id } = await params;
+
+    if (user?.role !== "admin") {
+      if (!user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+      const msg = db.prepare(`
+        SELECT m.id FROM messages m 
+        JOIN mailboxes mb ON m.mailbox_id = mb.id
+        WHERE m.id = ? AND mb.user_id = ?
+      `).get(id, user.id);
+      if (!msg) {
+        return NextResponse.json({ error: "Email not found" }, { status: 404 });
+      }
+    }
+
     const body = await req.json();
 
-    if (body.isRead !== undefined) {
-      markMessageRead(id, Boolean(body.isRead));
+    if (body.isRead !== undefined || body.is_read !== undefined) {
+      const readVal = body.isRead !== undefined ? Boolean(body.isRead) : Boolean(body.is_read);
+      markMessageRead(id, readVal);
     }
 
     return NextResponse.json({ success: true });
@@ -46,7 +66,23 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getCurrentUser(req);
     const { id } = await params;
+
+    if (user?.role !== "admin") {
+      if (!user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+      const msg = db.prepare(`
+        SELECT m.id FROM messages m 
+        JOIN mailboxes mb ON m.mailbox_id = mb.id
+        WHERE m.id = ? AND mb.user_id = ?
+      `).get(id, user.id);
+      if (!msg) {
+        return NextResponse.json({ error: "Email not found" }, { status: 404 });
+      }
+    }
+
     deleteMessage(id);
     return NextResponse.json({ success: true });
   } catch (error: unknown) {

@@ -33,7 +33,7 @@ export function TabWebhooks() {
           setWebhookSecret(data.webhook_secret || "");
         }
       } catch {
-        toast("Không thể tải cài đặt thông báo", "error");
+        toast("Failed to load notification settings", "error");
       } finally {
         setIsLoading(false);
       }
@@ -58,12 +58,12 @@ export function TabWebhooks() {
       });
 
       if (res.ok) {
-        toast("Đã lưu cấu hình thông báo thành công!");
+        toast("Notification settings saved successfully!");
       } else {
-        toast("Lỗi khi lưu cài đặt", "error");
+        toast("Failed to save settings", "error");
       }
     } catch {
-      toast("Lỗi kết nối", "error");
+      toast("Connection error", "error");
     } finally {
       setIsSaving(false);
     }
@@ -71,36 +71,34 @@ export function TabWebhooks() {
 
   const testTelegram = async () => {
     if (!telegramToken || !telegramChatId) {
-      toast("Vui lòng nhập Token và Chat ID trước khi test", "error");
+      toast("Please enter Bot Token and Chat ID before testing", "error");
       return;
     }
     setIsTestingTelegram(true);
     try {
-      const text = `🔔 <b>mailtion.com Test Alert</b>\n\nThông báo kiểm tra kết nối Telegram Bot thành công!`;
-      const res = await fetch(`https://api.telegram.org/bot${telegramToken}/sendMessage`, {
+      const res = await fetch("/api/v1/settings/test-telegram", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          chat_id: telegramChatId,
-          text,
-          parse_mode: "HTML",
+          token: telegramToken,
+          chatId: telegramChatId,
         }),
       });
       const data = await res.json();
-      if (data.ok) {
-        toast("Đã gửi tin nhắn test đến Telegram thành công!");
+      if (res.ok) {
+        toast("Test message sent to Telegram successfully!");
       } else {
-        toast(`Lỗi Telegram: ${data.description}`, "error");
+        toast(`Telegram error: ${data.error || "Request failed"}`, "error");
       }
     } catch {
-      toast("Không thể kết nối API Telegram", "error");
+      toast("Failed to connect to Telegram API", "error");
     } finally {
       setIsTestingTelegram(false);
     }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 font-sans">
       <form onSubmit={handleSave} className="space-y-6">
         {/* Telegram Card */}
         <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-2xs dark:border-zinc-800 dark:bg-zinc-900/50">
@@ -111,8 +109,11 @@ export function TabWebhooks() {
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                  Thông báo qua Telegram Bot
+                  Telegram Bot Notifications
                 </h3>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  Forward incoming emails and verification codes to Telegram in real time
+                </p>
               </div>
             </div>
 
@@ -130,7 +131,7 @@ export function TabWebhooks() {
           <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                Bot Token (tạo từ @BotFather)
+                Bot Token (from @BotFather)
               </label>
               <input
                 type="text"
@@ -143,26 +144,26 @@ export function TabWebhooks() {
 
             <div>
               <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                Chat ID (Group ID hoặc ID cá nhân)
+                Chat ID (Group ID or user ID)
               </label>
               <input
                 type="text"
                 value={telegramChatId}
                 onChange={(e) => setTelegramChatId(e.target.value)}
-                placeholder="-100123456789 hoặc 987654321"
+                placeholder="-100123456789 or 987654321"
                 className="mt-1 w-full rounded-lg border border-zinc-200 bg-transparent px-3 py-2 text-xs font-mono text-zinc-900 dark:border-zinc-700 dark:text-zinc-100 outline-none focus:border-zinc-900 dark:focus:border-zinc-400"
               />
             </div>
           </div>
 
-          <div className="mt-3 flex justify-end">
+          <div className="mt-4 flex justify-end">
             <button
               type="button"
+              disabled={isTestingTelegram}
               onClick={testTelegram}
-              disabled={isTestingTelegram || !telegramToken}
-              className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 disabled:opacity-50"
+              className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 disabled:opacity-50 transition-colors"
             >
-              {isTestingTelegram ? "Đang gửi..." : "Gửi tin nhắn thử nghiệm"}
+              {isTestingTelegram ? "Sending test..." : "Send Test Message"}
             </button>
           </div>
         </div>
@@ -176,8 +177,11 @@ export function TabWebhooks() {
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                  Thông báo qua Discord Webhook
+                  Discord Webhook Notifications
                 </h3>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  Post new email summaries into a Discord channel
+                </p>
               </div>
             </div>
 
@@ -194,7 +198,7 @@ export function TabWebhooks() {
 
           <div className="mt-4">
             <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-              Webhook URL
+              Discord Webhook URL
             </label>
             <input
               type="text"
@@ -206,17 +210,19 @@ export function TabWebhooks() {
           </div>
         </div>
 
-        {/* Save Button */}
         <div className="flex justify-end">
           <button
             type="submit"
             disabled={isSaving}
-            className="rounded-lg bg-zinc-900 px-5 py-2 text-xs font-semibold text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200 transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 rounded-xl bg-zinc-900 px-5 py-2.5 text-xs sm:text-sm font-semibold text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200 transition-all shadow-xs disabled:opacity-50"
           >
-            {isSaving ? "Đang lưu..." : "Lưu cấu hình thông báo"}
+            <Check className="h-4 w-4" />
+            <span>{isSaving ? "Saving..." : "Save Notification Settings"}</span>
           </button>
         </div>
       </form>
     </div>
   );
 }
+
+export default TabWebhooks;

@@ -7,7 +7,16 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatDate(dateString: string | Date | null | undefined): string {
   if (!dateString) return "-";
-  const date = typeof dateString === "string" ? new Date(dateString) : dateString;
+  let date: Date;
+  if (typeof dateString === "string") {
+    let s = dateString.trim();
+    if (!s.includes("T") && !s.includes("Z") && !s.includes("+")) {
+      s = s.replace(" ", "T") + "Z";
+    }
+    date = new Date(s);
+  } else {
+    date = dateString;
+  }
   if (isNaN(date.getTime())) return "-";
   
   const now = new Date();
@@ -17,14 +26,37 @@ export function formatDate(dateString: string | Date | null | undefined): string
   const diffHours = Math.floor(diffMin / 60);
   const diffDays = Math.floor(diffHours / 24);
 
-  if (diffSec < 60) return "vừa xong";
-  if (diffMin < 60) return `${diffMin}m trước`;
-  if (diffHours < 24) return `${diffHours}h trước`;
-  if (diffDays < 7) return `${diffDays}d trước`;
+  if (diffSec < 60) return "just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
 
-  return date.toLocaleDateString("vi-VN", {
-    month: "2-digit",
-    day: "2-digit",
+  return date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+export function formatFullDate(dateString: string | Date | null | undefined): string {
+  if (!dateString) return "-";
+  let date: Date;
+  if (typeof dateString === "string") {
+    let s = dateString.trim();
+    if (!s.includes("T") && !s.includes("Z") && !s.includes("+")) {
+      s = s.replace(" ", "T") + "Z";
+    }
+    date = new Date(s);
+  } else {
+    date = dateString;
+  }
+  if (isNaN(date.getTime())) return "-";
+
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
@@ -33,11 +65,11 @@ export function formatDate(dateString: string | Date | null | undefined): string
 
 export function extractOtpCode(text: string): string | null {
   if (!text) return null;
-  // Patterns like: "mã xác thực: 123456", "OTP: 1234", "code: 123456", or standalone 4-8 digit numbers
+  // Prefer numbers explicitly labelled as a verification code. A bare six-digit
+  // value is a useful fallback; broader 4-8 digit matches capture years and prices.
   const otpPatterns = [
-    /(?:otp|mã|code|verification|xác thực|pin)[\s:=#-]+([0-9]{4,8})\b/i,
+    /(?:otp|code|verification|pin)[\s:=#-]+([0-9]{4,8})\b/i,
     /\b([0-9]{6})\b/,
-    /\b([0-9]{4,8})\b/,
   ];
 
   for (const pattern of otpPatterns) {

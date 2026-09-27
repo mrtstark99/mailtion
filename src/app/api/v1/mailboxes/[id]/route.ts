@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deleteMailbox, toggleMailboxStatus } from "@/lib/mail-service";
+import { getCurrentUser } from "@/lib/session";
 import { db } from "@/lib/db";
 
 export async function PATCH(
@@ -7,20 +8,52 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getCurrentUser(req);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { id } = await params;
+
+    const mb = db.prepare("SELECT id, user_id, is_primary FROM mailboxes WHERE id = ?").get(id) as {
+      id: string;
+      user_id?: string;
+      is_primary?: number;
+    } | undefined;
+
+    if (!mb) {
+      return NextResponse.json({ error: "Mailbox not found" }, { status: 404 });
+    }
+
+    if (user.role !== "admin" && mb.user_id !== user.id) {
+      return NextResponse.json({ error: "Mailbox not found" }, { status: 404 });
+    }
+
     const body = await req.json();
 
+    // Protect primary mailbox: cannot pause
     if (body.status) {
+      if (mb.is_primary === 1 && body.status !== "active") {
+        return NextResponse.json({ error: "Primary account mailbox cannot be deactivated" }, { status: 403 });
+      }
       toggleMailboxStatus(id, body.status);
     }
 
+    // Allow updating display name, tag, and note
     if (body.name !== undefined) {
-      db.prepare("UPDATE mailboxes SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(body.name ? body.name.trim() : null, id);
+      db.prepare("UPDATE mailboxes SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(
+        body.name ? body.name.trim() : null,
+        id
+      );
     }
 
     if (body.tag !== undefined || body.note !== undefined) {
       if (body.tag !== undefined && body.note !== undefined) {
-        db.prepare("UPDATE mailboxes SET tag = ?, note = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(body.tag, body.note, id);
+        db.prepare("UPDATE mailboxes SET tag = ?, note = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(
+          body.tag,
+          body.note,
+          id
+        );
       } else if (body.tag !== undefined) {
         db.prepare("UPDATE mailboxes SET tag = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(body.tag, id);
       } else if (body.note !== undefined) {
@@ -41,7 +74,32 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getCurrentUser(req);
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { id } = await params;
+
+    const mb = db.prepare("SELECT id, user_id, is_primary FROM mailboxes WHERE id = ?").get(id) as {
+      id: string;
+      user_id?: string;
+      is_primary?: number;
+    } | undefined;
+
+    if (!mb) {
+      return NextResponse.json({ error: "Mailbox not found" }, { status: 404 });
+    }
+
+    if (user.role !== "admin" && mb.user_id !== user.id) {
+      return NextResponse.json({ error: "Mailbox not found" }, { status: 404 });
+    }
+
+    // Hard block deleting primary mailbox
+    if (mb.is_primary === 1) {
+      return NextResponse.json({ error: "Cannot delete primary account mailbox" }, { status: 403 });
+    }
+
     deleteMailbox(id);
     return NextResponse.json({ success: true });
   } catch (error: unknown) {

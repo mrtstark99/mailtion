@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSettings, updateSetting } from "@/lib/mail-service";
+import { getCurrentUser } from "@/lib/session";
 
-export async function GET() {
+async function requireAdmin(req: NextRequest) {
+  const user = await getCurrentUser(req);
+  return user?.role === "admin";
+}
+
+export async function GET(req: NextRequest) {
   try {
+    if (!(await requireAdmin(req))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
     const settings = getSettings();
     return NextResponse.json(settings);
   } catch (error: unknown) {
@@ -13,6 +22,9 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    if (!(await requireAdmin(req))) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
     const body = await req.json();
     for (const [key, val] of Object.entries(body)) {
       if (typeof val === "string") {

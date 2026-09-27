@@ -1,22 +1,43 @@
 export const dynamic = 'force-dynamic';
 
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const plusJakartaSans = Plus_Jakarta_Sans({
+  variable: "--font-plus-jakarta-sans",
   subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+  display: "swap",
+  preload: false,
 });
 
 export const metadata: Metadata = {
-  title: "Mailtion - Hệ Thống Tạo Mail Hàng Loạt & Quản Lý Inbound (mailtion.com)",
-  description: "Bảng quản trị tạo và quản lý hàng loạt email ảo trên miền mailtion.com với Cloudflare Email Routing & SQLite VPS",
+  metadataBase: new URL("https://mailtion.com"),
+  title: "Mailtion - Modern Email Management & On-Demand Inboxes",
+  description: "Create disposable and custom email addresses, receive real-time verification codes, and manage all your inboxes seamlessly with Mailtion.",
+  openGraph: {
+    title: "Mailtion - Modern Email Management & On-Demand Inboxes",
+    description: "Create disposable and custom email addresses, receive real-time verification codes, and manage all your inboxes seamlessly with Mailtion.",
+    url: "https://mailtion.com",
+    siteName: "Mailtion",
+    images: [
+      {
+        url: "/og-image.jpg",
+        width: 1200,
+        height: 630,
+        alt: "Mailtion - Modern Email Management",
+      },
+    ],
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Mailtion - Modern Email Management & On-Demand Inboxes",
+    description: "Create disposable and custom email addresses, receive real-time verification codes, and manage all your inboxes seamlessly with Mailtion.",
+    images: ["/og-image.jpg"],
+  },
   icons: {
     icon: [
       { url: "/favicon.png", sizes: "32x32", type: "image/png" },
@@ -33,8 +54,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="vi" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col">{children}</body>
+    <html lang="en" className={`${plusJakartaSans.variable} font-sans h-full antialiased`}>
+      <body className="min-h-full flex flex-col font-sans bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">{children}</body>
     </html>
   );
 }

@@ -1,9 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getSystemStats } from "@/lib/mail-service";
+import { getCurrentUser } from "@/lib/session";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const stats = getSystemStats();
+    const user = await getCurrentUser(req);
+    const stats = getSystemStats(user?.role === "admin" ? undefined : user?.id);
     return NextResponse.json(stats);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Internal Server Error";
