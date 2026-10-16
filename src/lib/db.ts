@@ -152,6 +152,7 @@ function createDb(): DatabaseSync {
   addUserColumn("recovery_email", "recovery_email TEXT");
   addUserColumn("status", "status TEXT NOT NULL DEFAULT 'active'");
   addUserColumn("max_mailboxes", "max_mailboxes INTEGER NOT NULL DEFAULT 1");
+  addUserColumn("auto_forward", "auto_forward INTEGER NOT NULL DEFAULT 1");
 
   // Partial unique index so that each recovery email can only register 1 user account
   db.exec(`
@@ -164,6 +165,7 @@ function createDb(): DatabaseSync {
   try {
     db.prepare("UPDATE users SET max_mailboxes = 1 WHERE role != 'admin' AND (max_mailboxes IS NULL OR max_mailboxes != 1)").run();
     db.prepare("UPDATE users SET max_mailboxes = 999999 WHERE role = 'admin'").run();
+    db.prepare("UPDATE users SET auto_forward = 1 WHERE auto_forward IS NULL").run();
 
     // Ensure all regular users keep only 1 mailbox (their primary mailbox)
     db.prepare(`

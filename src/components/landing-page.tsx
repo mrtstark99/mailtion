@@ -65,11 +65,11 @@ export function LandingPage({ isLoggedIn = false, onGoToDashboard }: LandingPage
           {/* Left Column: Minimal description */}
           <div className="lg:col-span-6 flex flex-col items-start space-y-6">
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-normal text-zinc-900 leading-[1.18]">
-              Create secondary mailboxes and manage them at Mailtion today
+              Modern, fast, and secure email for everyone
             </h1>
 
             <p className="text-base sm:text-lg text-zinc-600 max-w-xl leading-relaxed font-normal">
-              Quickly create private email addresses, receive messages and verification codes securely. Centralize and manage all your inboxes in a single interface.
+              Experience seamless communication with Mailtion. Send, receive, and organize your emails effortlessly with modern security, privacy, and an intuitive interface.
             </p>
 
             {/* CTA Buttons */}

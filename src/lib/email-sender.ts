@@ -28,12 +28,14 @@ export async function sendEmail({
   html,
   text,
   from,
+  replyTo,
 }: {
   to: string | string[];
   subject: string;
   html?: string;
   text?: string;
   from?: string;
+  replyTo?: string;
 }) {
   const { client, fromEmail } = getResendClient();
   if (!client) {
@@ -43,13 +45,25 @@ export async function sendEmail({
   const sender = from || fromEmail;
 
   try {
-    const result = await client.emails.send({
+    const payload: {
+      from: string;
+      to: string | string[];
+      subject: string;
+      html: string;
+      text: string;
+      reply_to?: string;
+    } = {
       from: sender,
       to,
       subject,
       html: html || (text ? `<p>${text.replace(/\n/g, "<br/>")}</p>` : ""),
       text: text || "",
-    });
+    };
+    if (replyTo) {
+      payload.reply_to = replyTo;
+    }
+
+    const result = await client.emails.send(payload);
 
     if (result.error) {
       // If domain verification error, try with onboarding@resend.dev as fallback
@@ -58,13 +72,24 @@ export async function sendEmail({
         result.error.message.toLowerCase().includes("verify")
       ) {
         console.warn("[EmailSender] Retrying with onboarding@resend.dev fallback due to domain check:", result.error.message);
-        const fallbackResult = await client.emails.send({
+        const fallbackPayload: {
+          from: string;
+          to: string | string[];
+          subject: string;
+          html: string;
+          text: string;
+          reply_to?: string;
+        } = {
           from: "Mailtion <onboarding@resend.dev>",
           to,
           subject,
           html: html || (text ? `<p>${text.replace(/\n/g, "<br/>")}</p>` : ""),
           text: text || "",
-        });
+        };
+        if (replyTo) {
+          fallbackPayload.reply_to = replyTo;
+        }
+        const fallbackResult = await client.emails.send(fallbackPayload);
         if (fallbackResult.error) {
           throw new Error(fallbackResult.error.message);
         }
@@ -78,6 +103,83 @@ export async function sendEmail({
     const errMsg = err instanceof Error ? err.message : String(err);
     throw new Error(errMsg);
   }
+}
+
+export async function sendForwardedEmail({
+  to,
+  originalTo,
+  originalFrom,
+  originalFromName,
+  subject,
+  html,
+  text,
+  otpCode,
+}: {
+  to: string;
+  originalTo: string;
+  originalFrom: string;
+  originalFromName?: string;
+  subject: string;
+  html?: string;
+  text?: string;
+  otpCode?: string;
+}) {
+  const fromDisplay = originalFromName ? `${originalFromName} <${originalFrom}>` : originalFrom;
+  const fwdSubject = subject ? `[Mailtion Fwd] ${subject}` : `[Mailtion Fwd] Email to ${originalTo}`;
+
+  const headerBannerHtml = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; margin-bottom: 20px;">
+      <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; margin-bottom: 8px;">
+        📬 Mailtion Auto-Forward Notice
+      </div>
+      <table style="font-size: 13px; color: #1e293b; border-collapse: collapse; width: 100%;">
+        <tr>
+          <td style="padding: 2px 0; color: #64748b; width: 120px;"><strong>Hộp thư Mailtion:</strong></td>
+          <td style="padding: 2px 0;"><code style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 12px;">${originalTo}</code></td>
+        </tr>
+        <tr>
+          <td style="padding: 2px 0; color: #64748b;"><strong>Người gửi:</strong></td>
+          <td style="padding: 2px 0;">${fromDisplay}</td>
+        </tr>
+        ${
+          otpCode
+            ? `<tr>
+                <td style="padding: 2px 0; color: #64748b;"><strong>Mã OTP / Code:</strong></td>
+                <td style="padding: 2px 0;"><span style="font-size: 16px; font-weight: 700; color: #2563eb; background: #dbeafe; padding: 2px 8px; border-radius: 4px; font-family: monospace;">${otpCode}</span></td>
+              </tr>`
+            : ""
+        }
+      </table>
+    </div>
+  `;
+
+  const finalHtml = `
+    <!DOCTYPE html>
+    <html>
+      <body style="margin: 0; padding: 12px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+        ${headerBannerHtml}
+        <div style="font-size: 14px; line-height: 1.6; color: #334155;">
+          ${html || (text ? `<p style="white-space: pre-wrap;">${text}</p>` : "<p>(Nội dung trống)</p>")}
+        </div>
+      </body>
+    </html>
+  `;
+
+  const fallbackText = `[Mailtion Auto-Forward]
+Hộp thư Mailtion: ${originalTo}
+Người gửi: ${fromDisplay}
+${otpCode ? `Mã OTP: ${otpCode}\n` : ""}
+--------------------------------------------------
+
+${text || "(Nội dung trống)"}`;
+
+  return await sendEmail({
+    to,
+    subject: fwdSubject,
+    html: finalHtml,
+    text: fallbackText,
+    replyTo: originalFrom,
+  });
 }
 
 export async function sendAuthOtpEmail({

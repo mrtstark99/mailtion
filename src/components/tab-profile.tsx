@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { User, Mail, KeyRound, Check, Loader2 } from "lucide-react";
+import { User, Mail, KeyRound, Check, Loader2, Forward } from "lucide-react";
 import { useToast } from "./toast";
 import { formatFullDate } from "@/lib/utils";
 
@@ -10,6 +10,7 @@ interface UserProfile {
   username: string;
   email: string;
   recoveryEmail: string | null;
+  autoForward?: boolean;
   role: string;
   createdAt: string;
   mailboxCount: number;
@@ -23,6 +24,10 @@ export function TabProfile() {
   // Recovery email state
   const [recoveryEmail, setRecoveryEmail] = useState("");
   const [isSavingRecovery, setIsSavingRecovery] = useState(false);
+
+  // Auto forward state
+  const [autoForward, setAutoForward] = useState<boolean>(true);
+  const [isSavingAutoForward, setIsSavingAutoForward] = useState(false);
 
   // Change password state
   const [currentPassword, setCurrentPassword] = useState("");
@@ -42,6 +47,7 @@ export function TabProfile() {
         const data = await res.json();
         setProfile(data.user);
         setRecoveryEmail(data.user?.recoveryEmail || "");
+        setAutoForward(data.user?.autoForward ?? true);
       }
     } catch {
       toast("Failed to load profile", "error");
@@ -50,12 +56,42 @@ export function TabProfile() {
     }
   };
 
+  const handleToggleAutoForward = async (newValue: boolean) => {
+    setAutoForward(newValue);
+    try {
+      setIsSavingAutoForward(true);
+      const res = await fetch("/api/v1/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ autoForward: newValue }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast(
+          newValue
+            ? "Đã bật tự động chuyển tiếp về email gốc"
+            : "Đã tắt tự động chuyển tiếp về email gốc",
+          "success"
+        );
+        setProfile((prev) => (prev ? { ...prev, autoForward: newValue } : null));
+      } else {
+        toast(data.error || "Không thể cập nhật cấu hình", "error");
+        setAutoForward(!newValue);
+      }
+    } catch {
+      toast("Lỗi kết nối", "error");
+      setAutoForward(!newValue);
+    } finally {
+      setIsSavingAutoForward(false);
+    }
+  };
+
   const handleUpdateRecovery = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       setIsSavingRecovery(true);
       const res = await fetch("/api/v1/profile", {
-        method: "PATCH",
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ recoveryEmail }),
       });
@@ -197,6 +233,45 @@ export function TabProfile() {
             <span>Save Recovery Email</span>
           </button>
         </form>
+      </div>
+
+      {/* Auto-Forward Settings Card */}
+      <div className="rounded-2xl border border-zinc-200 bg-white p-5 sm:p-6 shadow-xs dark:border-zinc-800 dark:bg-zinc-900/50 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400 mt-0.5 shrink-0">
+              <Forward className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-sm sm:text-base font-bold text-zinc-900 dark:text-zinc-100">
+                Tự động chuyển tiếp thư về Email gốc
+              </h3>
+              <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+                Tự động chuyển tiếp bản sao tất cả email nhận được về địa chỉ email khôi phục ({recoveryEmail ? <span className="font-mono font-medium text-zinc-800 dark:text-zinc-200">{recoveryEmail}</span> : <span className="italic text-zinc-400">Chưa thiết lập</span>}).
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 self-end sm:self-center">
+            {isSavingAutoForward && <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />}
+            <label className="relative inline-flex items-center cursor-pointer shrink-0">
+              <input
+                type="checkbox"
+                checked={autoForward}
+                disabled={isSavingAutoForward || !recoveryEmail}
+                onChange={(e) => handleToggleAutoForward(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-zinc-900 dark:peer-checked:bg-blue-600 dark:bg-zinc-700 disabled:opacity-50"></div>
+            </label>
+          </div>
+        </div>
+
+        {!recoveryEmail && (
+          <div className="text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 p-3 rounded-xl border border-amber-200/80 dark:border-amber-900/50">
+            💡 Bạn cần lưu địa chỉ Email khôi phục ở trên để sử dụng tính năng chuyển tiếp thư tự động.
+          </div>
+        )}
       </div>
 
       {/* Change Password Card */}

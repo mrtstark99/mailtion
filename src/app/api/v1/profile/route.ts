@@ -11,10 +11,10 @@ export async function GET(req: NextRequest) {
     }
 
     const row = db.prepare(`
-      SELECT id, username, email, recovery_email, role, created_at, updated_at
+      SELECT id, username, email, recovery_email, role, COALESCE(auto_forward, 1) as auto_forward, created_at, updated_at
       FROM users
       WHERE id = ?
-    `).get(user.id) as { id: string; username: string; email: string; recovery_email: string; role: string; created_at: string; updated_at: string } | undefined;
+    `).get(user.id) as { id: string; username: string; email: string; recovery_email: string; role: string; auto_forward: number; created_at: string; updated_at: string } | undefined;
 
     if (!row) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -26,6 +26,7 @@ export async function GET(req: NextRequest) {
         username: row.username,
         email: row.email,
         recoveryEmail: row.recovery_email,
+        autoForward: Boolean(row.auto_forward),
         role: row.role,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
@@ -45,7 +46,15 @@ export async function PUT(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { recoveryEmail, currentPassword, newPassword } = body;
+    const { recoveryEmail, autoForward, currentPassword, newPassword } = body;
+
+    // Update autoForward
+    if (autoForward !== undefined) {
+      db.prepare("UPDATE users SET auto_forward = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(
+        autoForward ? 1 : 0,
+        user.id
+      );
+    }
 
     // Update recovery email
     if (recoveryEmail !== undefined) {
@@ -116,3 +125,5 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: errMsg }, { status: 500 });
   }
 }
+
+export const PATCH = PUT;

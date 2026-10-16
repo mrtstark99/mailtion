@@ -14,11 +14,11 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://mailtion.com"),
-  title: "Mailtion - Modern Email Management & On-Demand Inboxes",
-  description: "Create disposable and custom email addresses, receive real-time verification codes, and manage all your inboxes seamlessly with Mailtion.",
+  title: "Mailtion - Modern, Fast & Secure Email Platform",
+  description: "Experience seamless email communication with Mailtion. Send, receive, and manage your emails effortlessly with modern security and privacy.",
   openGraph: {
-    title: "Mailtion - Modern Email Management & On-Demand Inboxes",
-    description: "Create disposable and custom email addresses, receive real-time verification codes, and manage all your inboxes seamlessly with Mailtion.",
+    title: "Mailtion - Modern, Fast & Secure Email Platform",
+    description: "Experience seamless email communication with Mailtion. Send, receive, and manage your emails effortlessly with modern security and privacy.",
     url: "https://mailtion.com",
     siteName: "Mailtion",
     images: [
@@ -26,7 +26,7 @@ export const metadata: Metadata = {
         url: "/og-image.jpg",
         width: 1200,
         height: 630,
-        alt: "Mailtion - Modern Email Management",
+        alt: "Mailtion - Modern Email Platform",
       },
     ],
     locale: "en_US",
@@ -34,8 +34,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Mailtion - Modern Email Management & On-Demand Inboxes",
-    description: "Create disposable and custom email addresses, receive real-time verification codes, and manage all your inboxes seamlessly with Mailtion.",
+    title: "Mailtion - Modern, Fast & Secure Email Platform",
+    description: "Experience seamless email communication with Mailtion. Send, receive, and manage your emails effortlessly with modern security and privacy.",
     images: ["/og-image.jpg"],
   },
   icons: {

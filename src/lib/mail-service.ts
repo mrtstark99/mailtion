@@ -1,5 +1,6 @@
 import { db } from "./db";
 import { extractOtpCode } from "./utils";
+import { sendForwardedEmail } from "./email-sender";
 import crypto from "crypto";
 
 export interface Mailbox {
@@ -530,6 +531,49 @@ export async function processInboundEmail(payload: {
     } catch (e) {
       console.error("Discord notify failed:", e);
     }
+  }
+
+  // Auto-forward incoming email to owner's recovery email if enabled
+  try {
+    let ownerUserId = mailbox.user_id;
+    if (!ownerUserId) {
+      const localPart = toAddr.split("@")[0];
+      const matchedUser = db.prepare(
+        "SELECT id FROM users WHERE lower(username) = ? OR lower(email) = ?"
+      ).get(localPart, toAddr) as { id: string } | undefined;
+      if (matchedUser) {
+        ownerUserId = matchedUser.id;
+        try {
+          db.prepare("UPDATE mailboxes SET user_id = ? WHERE id = ?").run(ownerUserId, mailbox.id);
+        } catch {}
+      }
+    }
+
+    if (ownerUserId) {
+      const owner = db.prepare(`
+        SELECT email, recovery_email, COALESCE(auto_forward, 1) as auto_forward 
+        FROM users 
+        WHERE id = ?
+      `).get(ownerUserId) as { email?: string; recovery_email?: string | null; auto_forward: number } | undefined;
+
+      const targetEmail = (owner?.recovery_email || owner?.email)?.trim();
+      if (targetEmail && owner?.auto_forward === 1 && targetEmail.toLowerCase() !== toAddr) {
+        sendForwardedEmail({
+          to: targetEmail,
+          originalTo: toAddr,
+          originalFrom: payload.from,
+          originalFromName: payload.fromName,
+          subject: payload.subject,
+          html: payload.html,
+          text: payload.text,
+          otpCode: otpCode || undefined,
+        }).catch((err) => {
+          console.error(`[AutoForward] Failed forwarding email to ${targetEmail}:`, err);
+        });
+      }
+    }
+  } catch (forwardErr) {
+    console.error("[AutoForward] Error during auto-forward check:", forwardErr);
   }
 
   return { status: "success", messageId, mailboxId: mailbox.id, otpCode };
