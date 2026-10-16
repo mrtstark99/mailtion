@@ -151,6 +151,30 @@ function createDb(): DatabaseSync {
   addUserColumn("is_verified", "is_verified INTEGER NOT NULL DEFAULT 1");
   addUserColumn("recovery_email", "recovery_email TEXT");
   addUserColumn("status", "status TEXT NOT NULL DEFAULT 'active'");
+  addUserColumn("max_mailboxes", "max_mailboxes INTEGER NOT NULL DEFAULT 1");
+
+  // Partial unique index so that each recovery email can only register 1 user account
+  db.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_users_recovery_email_unique 
+    ON users(lower(recovery_email)) 
+    WHERE recovery_email IS NOT NULL AND recovery_email != '';
+  `);
+
+  // Update existing users to enforce max_mailboxes: 1 for regular users, unlimited for admin
+  try {
+    db.prepare("UPDATE users SET max_mailboxes = 1 WHERE role != 'admin' AND (max_mailboxes IS NULL OR max_mailboxes != 1)").run();
+    db.prepare("UPDATE users SET max_mailboxes = 999999 WHERE role = 'admin'").run();
+
+    // Ensure all regular users keep only 1 mailbox (their primary mailbox)
+    db.prepare(`
+      DELETE FROM mailboxes 
+      WHERE user_id IN (SELECT id FROM users WHERE role != 'admin')
+      AND (is_primary IS NULL OR is_primary != 1)
+      AND user_id IN (
+        SELECT user_id FROM mailboxes WHERE is_primary = 1 GROUP BY user_id
+      )
+    `).run();
+  } catch {}
 
   // Default settings if not already set
   const initSettings = [

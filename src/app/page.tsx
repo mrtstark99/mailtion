@@ -338,6 +338,7 @@ function DashboardContent() {
               <TabMailboxes
                 onOpenInboxForMailbox={handleOpenInboxForMailbox}
                 refreshTrigger={refreshTrigger}
+                isAdmin={isAdmin}
               />
             )}
             {activeTab === "inbox" && (

@@ -49,15 +49,30 @@ export async function PUT(req: NextRequest) {
 
     // Update recovery email
     if (recoveryEmail !== undefined) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(recoveryEmail.trim())) {
-        return NextResponse.json(
-          { error: "Invalid recovery email address format" },
-          { status: 400 }
-        );
+      const cleanRecovery = recoveryEmail ? recoveryEmail.trim().toLowerCase() : "";
+      if (cleanRecovery) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(cleanRecovery)) {
+          return NextResponse.json(
+            { error: "Định dạng email khôi phục không hợp lệ" },
+            { status: 400 }
+          );
+        }
+
+        const existing = db.prepare(
+          "SELECT id FROM users WHERE lower(recovery_email) = ? AND id != ?"
+        ).get(cleanRecovery, user.id);
+
+        if (existing) {
+          return NextResponse.json(
+            { error: "Email khôi phục này đã được sử dụng bởi một tài khoản khác. Mỗi email chỉ được đăng ký 1 tài khoản." },
+            { status: 409 }
+          );
+        }
       }
+
       db.prepare("UPDATE users SET recovery_email = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(
-        recoveryEmail.trim(),
+        cleanRecovery || null,
         user.id
       );
     }

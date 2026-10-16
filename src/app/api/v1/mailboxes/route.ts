@@ -44,11 +44,28 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
 
-    // Regular users can only create single mailbox
+    // Regular users can only create single mailbox and are subject to max_mailboxes quota (default: 1)
     if (user.role !== "admin") {
       if (body.bulk || body.mode || (body.count && parseInt(body.count, 10) > 1)) {
         return NextResponse.json(
-          { error: "Standard users can only create one mailbox at a time." },
+          { error: "Tài khoản tiêu chuẩn chỉ được phép tạo 1 hộp thư." },
+          { status: 403 }
+        );
+      }
+
+      const userRow = db.prepare(
+        "SELECT COALESCE(max_mailboxes, 1) as max_mailboxes FROM users WHERE id = ?"
+      ).get(user.id) as { max_mailboxes: number } | undefined;
+      const maxAllowed = userRow?.max_mailboxes ?? 1;
+
+      const currentCountRow = db.prepare(
+        "SELECT COUNT(*) as count FROM mailboxes WHERE user_id = ?"
+      ).get(user.id) as { count: number } | undefined;
+      const currentCount = currentCountRow?.count || 0;
+
+      if (currentCount >= maxAllowed) {
+        return NextResponse.json(
+          { error: `Tài khoản của bạn chỉ được phép đăng ký tối đa ${maxAllowed} email. Bạn không thể tạo thêm hộp thư mới.` },
           { status: 403 }
         );
       }

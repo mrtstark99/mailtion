@@ -15,6 +15,7 @@ interface UserRow {
   updated_at: string;
   mailbox_count: number;
   message_count: number;
+  max_mailboxes: number;
 }
 
 export async function GET(req: NextRequest) {
@@ -68,7 +69,8 @@ export async function GET(req: NextRequest) {
         u.created_at,
         u.updated_at,
         (SELECT COUNT(*) FROM mailboxes mb WHERE mb.user_id = u.id) as mailbox_count,
-        (SELECT COUNT(*) FROM messages msg JOIN mailboxes mb ON msg.mailbox_id = mb.id WHERE mb.user_id = u.id) as message_count
+        (SELECT COUNT(*) FROM messages msg JOIN mailboxes mb ON msg.mailbox_id = mb.id WHERE mb.user_id = u.id) as message_count,
+        COALESCE(u.max_mailboxes, 1) as max_mailboxes
       FROM users u
       ${whereClause}
       ORDER BY u.created_at DESC
@@ -135,6 +137,7 @@ export async function POST(req: NextRequest) {
     const recoveryEmail = (body.recoveryEmail || "").trim().toLowerCase() || null;
     const role = body.role === "admin" ? "admin" : "user";
     const status = body.status === "suspended" ? "suspended" : "active";
+    const maxMailboxes = role === "admin" ? 999999 : (body.maxMailboxes ? Math.max(1, parseInt(body.maxMailboxes, 10) || 1) : 1);
 
     if (!username) {
       return NextResponse.json({ error: "Vui lòng nhập tên người dùng (username)" }, { status: 400 });
@@ -157,6 +160,17 @@ export async function POST(req: NextRequest) {
       if (!emailRegex.test(recoveryEmail)) {
         return NextResponse.json({ error: "Email khôi phục không hợp lệ" }, { status: 400 });
       }
+
+      const existingRecovery = db.prepare(
+        "SELECT id FROM users WHERE lower(recovery_email) = ?"
+      ).get(recoveryEmail);
+
+      if (existingRecovery) {
+        return NextResponse.json(
+          { error: "Email khôi phục này đã được sử dụng bởi tài khoản khác. Mỗi email chỉ được đăng ký 1 tài khoản." },
+          { status: 409 }
+        );
+      }
     }
 
     const fullAddress = `${username}@mailtion.com`;
@@ -174,9 +188,9 @@ export async function POST(req: NextRequest) {
     const userId = crypto.randomUUID();
 
     db.prepare(`
-      INSERT INTO users (id, username, email, recovery_email, password_hash, salt, role, status, is_verified, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    `).run(userId, username, fullAddress, recoveryEmail, hash, salt, role, status);
+      INSERT INTO users (id, username, email, recovery_email, password_hash, salt, role, status, is_verified, max_mailboxes, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `).run(userId, username, fullAddress, recoveryEmail, hash, salt, role, status, maxMailboxes);
 
     // Auto-create default primary mailbox
     try {

@@ -45,6 +45,7 @@ interface UserItem {
   updated_at: string;
   mailbox_count: number;
   message_count: number;
+  max_mailboxes?: number;
 }
 
 interface UserMailbox {
@@ -123,6 +124,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
     recoveryEmail: "",
     role: "user" as "user" | "admin",
     status: "active" as "active" | "suspended",
+    maxMailboxes: 1,
   });
   const [showAddPassword, setShowAddPassword] = useState<boolean>(false);
   const [isSubmittingAdd, setIsSubmittingAdd] = useState<boolean>(false);
@@ -134,6 +136,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
     role: "user" as "user" | "admin",
     status: "active" as "active" | "suspended",
     password: "",
+    maxMailboxes: 1,
   });
   const [showEditPassword, setShowEditPassword] = useState<boolean>(false);
   const [isSubmittingEdit, setIsSubmittingEdit] = useState<boolean>(false);
@@ -245,6 +248,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
           recoveryEmail: "",
           role: "user",
           status: "active",
+          maxMailboxes: 1,
         });
         fetchUsers();
         if (onRefreshAll) onRefreshAll();
@@ -267,6 +271,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
       role: user.role,
       status: user.status,
       password: "",
+      maxMailboxes: user.max_mailboxes || 1,
     });
   };
 
@@ -696,8 +701,10 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
 
                       {/* Mailbox count */}
                       <td className="py-3.5 px-4 text-center hidden sm:table-cell">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300">
-                          {u.mailbox_count || 1}
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300" title="Hộp thư hiện có / Hạn mức tối đa">
+                          <span className="font-semibold text-zinc-900 dark:text-zinc-100">{u.mailbox_count || 1}</span>
+                          <span className="text-zinc-400">/</span>
+                          <span>{u.role === "admin" ? "∞" : (u.max_mailboxes || 1)}</span>
                         </span>
                       </td>
 
@@ -1035,6 +1042,27 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                   </select>
                 </div>
               </div>
+
+              {editForm.role !== "admin" && (
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                    Hạn mức hộp thư (Mailbox Quota)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={editForm.maxMailboxes}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, maxMailboxes: Math.max(1, parseInt(e.target.value, 10) || 1) })
+                    }
+                    className="w-full px-3.5 py-2 text-sm rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-zinc-900 dark:text-zinc-100"
+                  />
+                  <p className="mt-1 text-[11px] text-zinc-400">
+                    Mỗi người dùng tiêu chuẩn chỉ được đăng ký tối đa 1 email (mặc định: 1).
+                  </p>
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">

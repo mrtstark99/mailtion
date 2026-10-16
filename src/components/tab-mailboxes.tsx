@@ -42,9 +42,10 @@ interface MailboxItem {
 interface TabMailboxesProps {
   onOpenInboxForMailbox: (address: string) => void;
   refreshTrigger: number;
+  isAdmin?: boolean;
 }
 
-export function TabMailboxes({ onOpenInboxForMailbox, refreshTrigger }: TabMailboxesProps) {
+export function TabMailboxes({ onOpenInboxForMailbox, refreshTrigger, isAdmin = false }: TabMailboxesProps) {
   const { toast } = useToast();
   const [items, setItems] = useState<MailboxItem[]>([]);
   const [total, setTotal] = useState<number>(0);
@@ -209,8 +210,14 @@ export function TabMailboxes({ onOpenInboxForMailbox, refreshTrigger }: TabMailb
   };
 
   // Quick Single Creation Handler
+  const isAtLimit = !isAdmin && total >= 1;
+
   const handleCreateSingle = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isAtLimit) {
+      toast("Tài khoản của bạn chỉ được phép sở hữu tối đa 1 email.", "error");
+      return;
+    }
     setIsCreating(true);
     try {
       let local = newLocal.trim().replace(/@mailtion\.com$/i, "").trim();
@@ -331,14 +338,28 @@ export function TabMailboxes({ onOpenInboxForMailbox, refreshTrigger }: TabMailb
             className="w-full sm:w-36 rounded-lg border border-zinc-200 bg-transparent px-3 py-2 text-xs sm:text-sm text-zinc-900 dark:border-zinc-700 dark:text-zinc-100 outline-none"
           />
 
-          <button
-            type="button"
-            onClick={() => setShowCreateModal(true)}
-            className="col-span-2 sm:col-auto w-full sm:w-auto flex items-center justify-center gap-1.5 rounded-lg bg-zinc-900 px-3.5 py-2 text-xs sm:text-sm font-semibold text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200 transition-all shadow-xs active:scale-[0.98] cursor-pointer"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Create Mailbox</span>
-          </button>
+          {isAtLimit ? (
+            <div className="col-span-2 sm:col-auto w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => toast("Tài khoản người dùng tiêu chuẩn chỉ được đăng ký tối đa 1 email.", "error")}
+                className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-indigo-200/80 bg-indigo-50/70 px-3.5 py-2 text-xs sm:text-sm font-semibold text-indigo-700 hover:bg-indigo-100/70 dark:border-indigo-900/60 dark:bg-indigo-950/40 dark:text-indigo-300 shadow-xs transition-all cursor-pointer"
+                title="Tài khoản tiêu chuẩn chỉ được đăng ký tối đa 1 email"
+              >
+                <ShieldCheck className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                <span>Hạn mức: 1/1 Email (Đã đạt)</span>
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowCreateModal(true)}
+              className="col-span-2 sm:col-auto w-full sm:w-auto flex items-center justify-center gap-1.5 rounded-lg bg-zinc-900 px-3.5 py-2 text-xs sm:text-sm font-semibold text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200 transition-all shadow-xs active:scale-[0.98] cursor-pointer"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Create Mailbox</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -607,6 +628,12 @@ export function TabMailboxes({ onOpenInboxForMailbox, refreshTrigger }: TabMailb
               </button>
             </div>
 
+            {isAtLimit && (
+              <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300">
+                ⚠️ Tài khoản của bạn chỉ được phép sở hữu tối đa 1 địa chỉ email. Bạn đã có 1 email chính nên không thể tạo thêm.
+              </div>
+            )}
+
             <form onSubmit={handleCreateSingle} className="mt-4 space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
@@ -686,7 +713,7 @@ export function TabMailboxes({ onOpenInboxForMailbox, refreshTrigger }: TabMailb
                 </button>
                 <button
                   type="submit"
-                  disabled={isCreating}
+                  disabled={isCreating || isAtLimit}
                   className="flex items-center gap-1.5 rounded-xl bg-zinc-900 px-4 py-2 text-xs font-semibold text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200 disabled:opacity-50 cursor-pointer"
                 >
                   {isCreating ? "Creating..." : "Confirm Create"}

@@ -58,6 +58,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Check if recovery email has already been registered
+    const existingRecovery = db.prepare(
+      "SELECT id FROM users WHERE lower(recovery_email) = ?"
+    ).get(recoveryEmail);
+
+    if (existingRecovery) {
+      return NextResponse.json(
+        { error: "Email khôi phục này đã được sử dụng để đăng ký tài khoản khác. Mỗi email chỉ được đăng ký 1 tài khoản." },
+        { status: 409 }
+      );
+    }
+
     // Generate 6-digit OTP
     const otp = crypto.randomInt(100000, 1_000_000).toString();
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();

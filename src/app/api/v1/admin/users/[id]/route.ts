@@ -23,6 +23,7 @@ export async function GET(
         u.recovery_email,
         u.role,
         COALESCE(u.status, 'active') as status,
+        COALESCE(u.max_mailboxes, 1) as max_mailboxes,
         u.created_at,
         u.updated_at
       FROM users u
@@ -34,6 +35,7 @@ export async function GET(
       recovery_email: string | null;
       role: "admin" | "user";
       status: "active" | "suspended";
+      max_mailboxes: number;
       created_at: string;
       updated_at: string;
     } | undefined;
@@ -127,6 +129,14 @@ export async function PUT(
       if (!emailRegex.test(recoveryEmail)) {
         return NextResponse.json({ error: "Email khôi phục không hợp lệ" }, { status: 400 });
       }
+
+      const checkRecovery = db.prepare(`
+        SELECT id FROM users WHERE lower(recovery_email) = ? AND id != ?
+      `).get(recoveryEmail, id);
+
+      if (checkRecovery) {
+        return NextResponse.json({ error: "Email khôi phục này đã được sử dụng bởi tài khoản khác. Mỗi email chỉ được đăng ký 1 tài khoản." }, { status: 409 });
+      }
     }
 
     // Begin updates
@@ -165,6 +175,15 @@ export async function PUT(
         SET role = ?, updated_at = CURRENT_TIMESTAMP 
         WHERE id = ?
       `).run(role, id);
+    }
+
+    if (body.maxMailboxes !== undefined) {
+      const maxMb = Math.max(1, parseInt(body.maxMailboxes, 10) || 1);
+      db.prepare(`
+        UPDATE users 
+        SET max_mailboxes = ?, updated_at = CURRENT_TIMESTAMP 
+        WHERE id = ?
+      `).run(maxMb, id);
     }
 
     if (status !== targetUser.status) {

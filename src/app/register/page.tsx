@@ -290,6 +290,9 @@ export default function RegisterPage() {
                     className="w-full rounded-xl border border-zinc-200 bg-zinc-50/60 pl-10 pr-4 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-zinc-900/10 dark:border-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-zinc-100 transition-all font-sans"
                   />
                 </div>
+                <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+                  Dùng để nhận mã OTP và khôi phục. Mỗi email chỉ được đăng ký 1 tài khoản Mailtion duy nhất.
+                </p>
               </div>
 
               <div>

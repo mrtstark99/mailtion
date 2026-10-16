@@ -55,6 +55,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Double check recovery email uniqueness
+    const existingRecovery = db.prepare(
+      "SELECT id FROM users WHERE lower(recovery_email) = ?"
+    ).get(recoveryEmail);
+
+    if (existingRecovery) {
+      return NextResponse.json(
+        { error: "Email khôi phục này đã được sử dụng để đăng ký tài khoản khác. Mỗi email chỉ được đăng ký 1 tài khoản." },
+        { status: 409 }
+      );
+    }
+
     // Verify OTP code
     const validCode = db.prepare(`
       SELECT id, expires_at FROM auth_codes
@@ -84,8 +96,8 @@ export async function POST(req: NextRequest) {
     const userId = crypto.randomUUID();
 
     db.prepare(`
-      INSERT INTO users (id, username, email, recovery_email, password_hash, salt, role, is_verified, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, 'user', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      INSERT INTO users (id, username, email, recovery_email, password_hash, salt, role, is_verified, max_mailboxes, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, 'user', 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `).run(userId, username, fullAddress, recoveryEmail, hash, salt);
 
     // Create default mailbox for user with is_primary = 1
