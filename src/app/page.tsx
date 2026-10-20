@@ -96,10 +96,11 @@ function DashboardContent() {
           const data = await res.json();
           if (data.user) {
             setCurrentUser(data.user);
+            setShowLanding(false);
             if (data.user.role === "admin") {
               setActiveTab("admin_users");
             } else {
-              setActiveTab("mailboxes");
+              setActiveTab("inbox");
             }
           } else {
             setCurrentUser(null);
@@ -119,10 +120,14 @@ function DashboardContent() {
     checkAuth();
   }, []);
 
-  // Strict guard: Admin accounts cannot display or stay on mailboxes/inbox/overview
+  // Strict guard: Admin accounts cannot display or stay on inbox/overview
   useEffect(() => {
-    if (currentUser?.role === "admin" && (activeTab === "mailboxes" || activeTab === "inbox" || activeTab === "overview")) {
+    if (currentUser?.role === "admin" && (activeTab === "inbox" || activeTab === "overview" || activeTab === "mailboxes")) {
       setActiveTab("admin_users");
+    } else if (currentUser && currentUser.role !== "admin") {
+      if (activeTab !== "inbox" && activeTab !== "profile") {
+        setActiveTab("inbox");
+      }
     }
   }, [currentUser, activeTab]);
 
@@ -245,7 +250,7 @@ function DashboardContent() {
       <main className={`flex-1 w-full ${activeTab === "inbox" ? "max-w-none px-2 sm:px-4 lg:px-6" : "max-w-screen-2xl mx-auto px-3 sm:px-6 lg:px-8"} py-3.5 sm:py-6 space-y-4 sm:space-y-6`}>
         <div className="flex flex-col md:flex-row gap-4 lg:gap-8 items-start">
           {/* Sidebar Nav */}
-          <aside className="w-full md:w-60 lg:w-64 shrink-0">
+          <aside className="w-full md:w-56 lg:w-60 shrink-0 md:sticky md:top-20 z-10 self-start">
             <nav className="flex md:flex-col gap-1.5 text-sm font-medium overflow-x-auto no-scrollbar pb-1 md:pb-0 flex-nowrap scroll-smooth touch-pan-x -mx-3 px-3 md:mx-0 md:px-0">
               {tabs.map((tab) => {
                 const Icon = tab.icon;
