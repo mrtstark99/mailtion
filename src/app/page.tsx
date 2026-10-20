@@ -16,7 +16,6 @@ import {
 import { Navbar } from "@/components/navbar";
 import { ToastProvider, useToast } from "@/components/toast";
 import { TabGenerator } from "@/components/tab-generator";
-import { TabMailboxes } from "@/components/tab-mailboxes";
 import { TabInbox } from "@/components/tab-inbox";
 import { TabWebhooks } from "@/components/tab-webhooks";
 import { TabApiKeys } from "@/components/tab-api-keys";
@@ -25,6 +24,7 @@ import { TabSettings } from "@/components/tab-settings";
 import { TabProfile } from "@/components/tab-profile";
 import { TabAdminDashboard } from "@/components/tab-admin-dashboard";
 import { ComposeModal } from "@/components/compose-modal";
+import { CreateMailboxModal } from "@/components/create-mailbox-modal";
 import { LandingPage } from "@/components/landing-page";
 
 interface CurrentUser {
@@ -68,12 +68,13 @@ function DashboardContent() {
     }
     return false; // Default: Light mode
   });
-  const [activeTab, setActiveTab] = useState<string>("mailboxes");
+  const [activeTab, setActiveTab] = useState<string>("inbox");
   const [stats, setStats] = useState<StatsData | null>(null);
   const [recentMessages, setRecentMessages] = useState<MessageItem[]>([]);
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
   const [inboxFilterAddress, setInboxFilterAddress] = useState<string | null>(null);
   const [isComposeOpen, setIsComposeOpen] = useState<boolean>(false);
+  const [isCreateMailboxOpen, setIsCreateMailboxOpen] = useState<boolean>(false);
 
   // Apply dark class and persist theme
   useEffect(() => {
@@ -188,7 +189,6 @@ function DashboardContent() {
 
   // Tab definitions in English
   const userTabs = [
-    { id: "mailboxes", label: "Mailboxes", icon: Mail, badge: stats?.activeMailboxes },
     {
       id: "inbox",
       label: "Inbox",
@@ -223,6 +223,7 @@ function DashboardContent() {
         darkMode={darkMode}
         setDarkMode={setDarkMode}
         onRefreshAll={handleRefreshAll}
+        onOpenAddMailbox={() => setIsCreateMailboxOpen(true)}
         onOpenCompose={isAdmin ? () => setIsComposeOpen(true) : undefined}
         onOpenDashboard={
           isAdmin
@@ -303,14 +304,6 @@ function DashboardContent() {
                 }}
               />
             )}
-            {activeTab === "mailboxes" && !isAdmin && (
-              <TabMailboxes
-                onOpenInboxForMailbox={handleOpenInboxForMailbox}
-                refreshTrigger={refreshTrigger}
-                isAdmin={false}
-                maxMailboxes={currentUser?.maxMailboxes ?? 1}
-              />
-            )}
             {activeTab === "inbox" && !isAdmin && (
               <TabInbox
                 refreshTrigger={refreshTrigger}
@@ -336,6 +329,13 @@ function DashboardContent() {
           }}
         />
       )}
+
+      <CreateMailboxModal
+        isOpen={isCreateMailboxOpen}
+        onClose={() => setIsCreateMailboxOpen(false)}
+        onSuccess={handleRefreshAll}
+        currentUser={currentUser}
+      />
     </div>
   );
 }

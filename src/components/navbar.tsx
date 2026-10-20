@@ -2,13 +2,14 @@
 
 import React from "react";
 import Image from "next/image";
-import { Sun, Moon, RefreshCw, LogOut, User, Send, Globe, ShieldCheck } from "lucide-react";
+import { Sun, Moon, RefreshCw, LogOut, User, Send, Globe, ShieldCheck, Plus } from "lucide-react";
 
 interface NavbarProps {
   darkMode: boolean;
   setDarkMode: (val: boolean) => void;
   onRefreshAll: () => void;
   onOpenCompose?: () => void;
+  onOpenAddMailbox?: () => void;
   onOpenDashboard?: () => void;
   isDashboardActive?: boolean;
   onViewLanding?: () => void;
@@ -21,6 +22,7 @@ export function Navbar({
   setDarkMode,
   onRefreshAll,
   onOpenCompose,
+  onOpenAddMailbox,
   onOpenDashboard,
   isDashboardActive,
   onViewLanding,
@@ -100,6 +102,17 @@ export function Navbar({
             >
               <Send className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Compose</span>
+            </button>
+          )}
+
+          {onOpenAddMailbox && (
+            <button
+              onClick={onOpenAddMailbox}
+              title="Add New Email Address"
+              className="flex h-8 sm:h-9 items-center gap-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-2.5 sm:px-3 text-xs font-semibold shadow-xs active:scale-[0.96] transition-all cursor-pointer"
+            >
+              <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Add Mail</span>
             </button>
           )}
 
