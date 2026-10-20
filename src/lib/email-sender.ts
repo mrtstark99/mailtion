@@ -1,5 +1,6 @@
 import { Resend, type Attachment } from "resend";
 import { db } from "./db";
+import { ensureLinksOpenInNewTab } from "./utils";
 
 export function getResendClient(): { client: Resend | null; fromEmail: string } {
   let apiKey = process.env.RESEND_API_KEY || "";
@@ -187,7 +188,7 @@ export async function sendForwardedEmail({
       </div>
       <table style="font-size: 13px; color: #1e293b; border-collapse: collapse; width: 100%;">
         <tr>
-          <td style="padding: 2px 0; color: #64748b; width: 140px;"><strong>Mailtion Mailbox:</strong></td>
+          <td style="padding: 2px 0; color: #64748b; width: 130px;"><strong>Mailbox:</strong></td>
           <td style="padding: 2px 0;"><code style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 12px;">${originalTo}</code></td>
         </tr>
         <tr>
@@ -214,20 +215,27 @@ export async function sendForwardedEmail({
     </div>
   `;
 
+  const processedBodyHtml = html
+    ? ensureLinksOpenInNewTab(html)
+    : (text ? `<p style="white-space: pre-wrap;">${text}</p>` : "<p>(No content)</p>");
+
   const finalHtml = `
     <!DOCTYPE html>
     <html>
+      <head>
+        <base target="_blank">
+      </head>
       <body style="margin: 0; padding: 12px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
         ${headerBannerHtml}
         <div style="font-size: 14px; line-height: 1.6; color: #334155;">
-          ${html || (text ? `<p style="white-space: pre-wrap;">${text}</p>` : "<p>(No content)</p>")}
+          ${processedBodyHtml}
         </div>
       </body>
     </html>
   `;
 
   const fallbackText = `[Mailtion Auto-Forward]
-Mailtion Mailbox: ${originalTo}
+Mailbox: ${originalTo}
 Sender: ${fromDisplay}
 ${otpCode ? `OTP Code: ${otpCode}\n` : ""}${
   emailAttachments.length > 0

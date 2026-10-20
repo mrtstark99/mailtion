@@ -27,7 +27,7 @@ import {
   Layers,
   Sparkles,
 } from "lucide-react";
-import { formatDate, extractOtpCode } from "@/lib/utils";
+import { formatDate, extractOtpCode, ensureLinksOpenInNewTab, formatPlainTextWithLinks } from "@/lib/utils";
 import { useToast } from "./toast";
 
 interface Attachment {
@@ -1008,22 +1008,24 @@ export function TabInbox({
                     <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white p-4 overflow-x-auto min-h-[500px] shadow-xs">
                       <iframe
                         title="Email HTML Preview"
-                        sandbox="allow-same-origin allow-popups"
-                        srcDoc={selectedMessage.body_html}
+                        sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+                        srcDoc={ensureLinksOpenInNewTab(selectedMessage.body_html)}
                         className="w-full min-h-[600px] border-0"
                       />
                     </div>
                   ) : (
-                    <div className="p-6 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-sm whitespace-pre-wrap font-sans text-zinc-800 dark:text-zinc-200 leading-relaxed">
-                      {selectedMessage.body_text || "(Empty content)"}
-                    </div>
+                    <div
+                      className="p-6 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-sm whitespace-pre-wrap font-sans text-zinc-800 dark:text-zinc-200 leading-relaxed [&_a]:text-blue-600 [&_a]:underline"
+                      dangerouslySetInnerHTML={{ __html: formatPlainTextWithLinks(selectedMessage.body_text || "(Empty content)") }}
+                    />
                   )
                 )}
 
                 {activeMessageViewTab === "text" && (
-                  <pre className="p-5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-xs font-mono text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap overflow-x-auto leading-relaxed">
-                    {selectedMessage.body_text || "(No plain text content)"}
-                  </pre>
+                  <div
+                    className="p-5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-xs font-mono text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap overflow-x-auto leading-relaxed [&_a]:text-blue-600 [&_a]:underline"
+                    dangerouslySetInnerHTML={{ __html: formatPlainTextWithLinks(selectedMessage.body_text || "(No plain text content)") }}
+                  />
                 )}
 
                 {activeMessageViewTab === "headers" && (
