@@ -140,25 +140,25 @@ export async function POST(req: NextRequest) {
     const maxMailboxes = role === "admin" ? 999999 : (body.maxMailboxes ? Math.max(1, parseInt(body.maxMailboxes, 10) || 1) : 1);
 
     if (!username) {
-      return NextResponse.json({ error: "Vui lòng nhập tên người dùng (username)" }, { status: 400 });
+      return NextResponse.json({ error: "Username is required" }, { status: 400 });
     }
 
     if (username.length < 3) {
-      return NextResponse.json({ error: "Tên người dùng phải có ít nhất 3 ký tự" }, { status: 400 });
+      return NextResponse.json({ error: "Username must be at least 3 characters" }, { status: 400 });
     }
 
     if (!/^[a-z0-9._-]+$/.test(username)) {
-      return NextResponse.json({ error: "Tên người dùng chỉ được chứa chữ cái thường, chữ số, dấu gạch nối (-), gạch dưới (_) và dấu chấm (.)" }, { status: 400 });
+      return NextResponse.json({ error: "Username can only contain lowercase letters, numbers, hyphens, underscores, and dots" }, { status: 400 });
     }
 
     if (!password || password.length < 6) {
-      return NextResponse.json({ error: "Mật khẩu phải có ít nhất 6 ký tự" }, { status: 400 });
+      return NextResponse.json({ error: "Password must be at least 6 characters" }, { status: 400 });
     }
 
     if (recoveryEmail) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(recoveryEmail)) {
-        return NextResponse.json({ error: "Email khôi phục không hợp lệ" }, { status: 400 });
+        return NextResponse.json({ error: "Invalid recovery email address" }, { status: 400 });
       }
 
       const existingRecovery = db.prepare(
@@ -167,7 +167,7 @@ export async function POST(req: NextRequest) {
 
       if (existingRecovery) {
         return NextResponse.json(
-          { error: "Email khôi phục này đã được sử dụng bởi tài khoản khác. Mỗi email chỉ được đăng ký 1 tài khoản." },
+          { error: "This recovery email is already in use by another account." },
           { status: 409 }
         );
       }
@@ -181,7 +181,7 @@ export async function POST(req: NextRequest) {
     `).get(username, fullAddress);
 
     if (existing) {
-      return NextResponse.json({ error: "Tên người dùng này đã tồn tại trong hệ thống. Vui lòng chọn tên khác." }, { status: 409 });
+      return NextResponse.json({ error: "Username is already taken. Please choose another." }, { status: 409 });
     }
 
     const { hash, salt } = await hashPassword(password);
@@ -205,7 +205,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: `Đã tạo tài khoản cho @${username} thành công!`,
+      message: `User @${username} created successfully!`,
       user: {
         id: userId,
         username,

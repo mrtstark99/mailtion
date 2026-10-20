@@ -87,7 +87,7 @@ export async function PUT(
     `).get(id) as { id: string; username: string; email: string | null; role: string; status: string } | undefined;
 
     if (!targetUser) {
-      return NextResponse.json({ error: "Người dùng không tồn tại" }, { status: 404 });
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     let username = body.username !== undefined ? body.username.trim().toLowerCase() : targetUser.username;
@@ -101,17 +101,17 @@ export async function PUT(
     // Security protections
     if (currentUser.id === targetUser.id) {
       if (status === "suspended") {
-        return NextResponse.json({ error: "Bạn không thể tự tạm dừng tài khoản đang đăng nhập của chính mình." }, { status: 400 });
+        return NextResponse.json({ error: "You cannot suspend your own account." }, { status: 400 });
       }
       if (role !== "admin") {
-        return NextResponse.json({ error: "Bạn không thể tự hủy quyền Admin của chính mình." }, { status: 400 });
+        return NextResponse.json({ error: "You cannot remove your own admin privileges." }, { status: 400 });
       }
     }
 
     // Validate username if changed
     if (username !== targetUser.username) {
       if (username.length < 3 || !/^[a-z0-9._-]+$/.test(username)) {
-        return NextResponse.json({ error: "Tên người dùng mới không hợp lệ (ít nhất 3 ký tự, chỉ gồm a-z, 0-9, ._-)" }, { status: 400 });
+        return NextResponse.json({ error: "Invalid username (minimum 3 characters, lowercase, digits, ._- only)" }, { status: 400 });
       }
 
       const checkDup = db.prepare(`
@@ -119,7 +119,7 @@ export async function PUT(
       `).get(username, `${username}@mailtion.com`, id);
 
       if (checkDup) {
-        return NextResponse.json({ error: "Tên người dùng này đã có người sử dụng" }, { status: 409 });
+        return NextResponse.json({ error: "Username is already taken" }, { status: 409 });
       }
     }
 
@@ -127,7 +127,7 @@ export async function PUT(
     if (recoveryEmail) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(recoveryEmail)) {
-        return NextResponse.json({ error: "Email khôi phục không hợp lệ" }, { status: 400 });
+        return NextResponse.json({ error: "Invalid recovery email address" }, { status: 400 });
       }
 
       const checkRecovery = db.prepare(`
@@ -135,7 +135,7 @@ export async function PUT(
       `).get(recoveryEmail, id);
 
       if (checkRecovery) {
-        return NextResponse.json({ error: "Email khôi phục này đã được sử dụng bởi tài khoản khác. Mỗi email chỉ được đăng ký 1 tài khoản." }, { status: 409 });
+        return NextResponse.json({ error: "This recovery email is already in use by another account." }, { status: 409 });
       }
     }
 
@@ -204,7 +204,7 @@ export async function PUT(
     // Optional password reset
     if (newPassword) {
       if (newPassword.length < 6) {
-        return NextResponse.json({ error: "Mật khẩu mới phải có ít nhất 6 ký tự" }, { status: 400 });
+        return NextResponse.json({ error: "Password must be at least 6 characters" }, { status: 400 });
       }
       const { hash, salt } = await hashPassword(newPassword);
       db.prepare(`
@@ -216,7 +216,7 @@ export async function PUT(
 
     return NextResponse.json({
       success: true,
-      message: "Cập nhật thông tin người dùng thành công!"
+      message: "User updated successfully!"
     });
   } catch (error: unknown) {
     console.error("[Admin User PUT [id]] Error:", error);
@@ -238,19 +238,19 @@ export async function DELETE(
     const { id } = await params;
 
     if (currentUser.id === id) {
-      return NextResponse.json({ error: "Không thể tự xóa tài khoản của chính mình." }, { status: 400 });
+      return NextResponse.json({ error: "You cannot delete your own account." }, { status: 400 });
     }
 
     const targetUser = db.prepare("SELECT id, username, role FROM users WHERE id = ?").get(id) as { id: string; username: string; role: string } | undefined;
     if (!targetUser) {
-      return NextResponse.json({ error: "Người dùng không tồn tại" }, { status: 404 });
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     // Prevent deleting the only remaining admin
     if (targetUser.role === "admin") {
       const adminCount = db.prepare("SELECT COUNT(*) as count FROM users WHERE role = 'admin'").get() as { count: number };
       if (adminCount.count <= 1) {
-        return NextResponse.json({ error: "Không thể xóa quản trị viên duy nhất còn lại của hệ thống." }, { status: 400 });
+        return NextResponse.json({ error: "Cannot delete the only remaining admin." }, { status: 400 });
       }
     }
 
@@ -271,7 +271,7 @@ export async function DELETE(
 
     return NextResponse.json({
       success: true,
-      message: `Đã xóa tài khoản @${targetUser.username} và toàn bộ dữ liệu thành công!`
+      message: `User @${targetUser.username} and all associated data deleted successfully!`
     });
   } catch (error: unknown) {
     console.error("[Admin User DELETE [id]] Error:", error);

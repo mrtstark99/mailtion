@@ -202,7 +202,7 @@ function DashboardContent() {
   const adminTabs = [
     {
       id: "admin_users",
-      label: "Quản trị Users",
+      label: "User Management",
       icon: Users,
       badge: "Admin",
       badgeColor: "bg-purple-600 text-white",

@@ -77,7 +77,7 @@ export function Navbar({
           {isAdmin && onOpenDashboard && (
             <button
               onClick={onOpenDashboard}
-              title="Quản trị người dùng & Hệ thống"
+              title="User & System Management"
               className={`flex h-8 sm:h-9 items-center gap-1.5 rounded-lg px-2.5 sm:px-3 text-xs font-semibold shadow-xs active:scale-[0.96] transition-all cursor-pointer ${
                 isDashboardActive
                   ? "bg-purple-600 text-white shadow-purple-500/25"

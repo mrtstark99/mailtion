@@ -176,10 +176,10 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
         }
       } else {
         const err = await res.json();
-        toast(err.error || "Không thể tải danh sách người dùng", "error");
+        toast(err.error || "Failed to load users", "error");
       }
     } catch {
-      toast("Lỗi kết nối khi tải danh sách người dùng", "error");
+      toast("Network error loading users", "error");
     } finally {
       setIsLoading(false);
     }
@@ -193,14 +193,14 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
     setCopiedText(text);
-    toast(`Đã sao chép: ${text}`);
+    toast(`Copied: ${text}`);
     setTimeout(() => setCopiedText(null), 2000);
   };
 
   // Toggle user status (Active <-> Suspended)
   const handleToggleStatus = async (user: UserItem) => {
     if (user.id === currentUserId) {
-      toast("Bạn không thể tạm dừng tài khoản của chính mình", "error");
+      toast("You cannot suspend your own account", "error");
       return;
     }
     setTogglingId(user.id);
@@ -214,10 +214,10 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
         fetchUsers();
         if (onRefreshAll) onRefreshAll();
       } else {
-        toast(data.error || "Lỗi cập nhật trạng thái", "error");
+        toast(data.error || "Failed to update status", "error");
       }
     } catch {
-      toast("Lỗi hệ thống khi đổi trạng thái", "error");
+      toast("System error updating status", "error");
     } finally {
       setTogglingId(null);
     }
@@ -227,7 +227,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!addForm.username.trim() || !addForm.password) {
-      toast("Vui lòng điền đầy đủ tên người dùng và mật khẩu", "error");
+      toast("Please enter both username and password", "error");
       return;
     }
 
@@ -240,7 +240,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
       });
       const data = await res.json();
       if (res.ok) {
-        toast(data.message || "Tạo người dùng thành công", "success");
+        toast(data.message || "User created successfully", "success");
         setIsAddModalOpen(false);
         setAddForm({
           username: "",
@@ -253,10 +253,10 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
         fetchUsers();
         if (onRefreshAll) onRefreshAll();
       } else {
-        toast(data.error || "Không thể tạo người dùng", "error");
+        toast(data.error || "Failed to create user", "error");
       }
     } catch {
-      toast("Lỗi kết nối khi tạo người dùng", "error");
+      toast("Network error creating user", "error");
     } finally {
       setIsSubmittingAdd(false);
     }
@@ -289,15 +289,15 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
       });
       const data = await res.json();
       if (res.ok) {
-        toast(data.message || "Cập nhật thành công", "success");
+        toast(data.message || "User updated successfully", "success");
         setEditingUser(null);
         fetchUsers();
         if (onRefreshAll) onRefreshAll();
       } else {
-        toast(data.error || "Không thể cập nhật người dùng", "error");
+        toast(data.error || "Failed to update user", "error");
       }
     } catch {
-      toast("Lỗi kết nối khi cập nhật người dùng", "error");
+      toast("Network error updating user", "error");
     } finally {
       setIsSubmittingEdit(false);
     }
@@ -312,15 +312,15 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
       });
       const data = await res.json();
       if (res.ok) {
-        toast(data.message || "Đã xóa người dùng thành công", "success");
+        toast(data.message || "User deleted successfully", "success");
         setDeletingUser(null);
         fetchUsers();
         if (onRefreshAll) onRefreshAll();
       } else {
-        toast(data.error || "Không thể xóa người dùng", "error");
+        toast(data.error || "Failed to delete user", "error");
       }
     } catch {
-      toast("Lỗi kết nối khi xóa người dùng", "error");
+      toast("Network error deleting user", "error");
     }
   };
 
@@ -364,7 +364,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
         }
       }
     } catch {
-      toast("Lỗi khi tải dữ liệu hộp thư của người dùng", "error");
+      toast("Failed to load user mailboxes", "error");
     } finally {
       setLoadingMessages(false);
     }
@@ -383,7 +383,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
     try {
       const res = await fetch(`/api/v1/messages/${msgId}`, { method: "DELETE" });
       if (res.ok) {
-        toast("Đã xóa thư thành công", "success");
+        toast("Message deleted successfully", "success");
         setUserMessages((prev) => prev.filter((m) => m.id !== msgId));
         if (selectedMessage?.id === msgId) {
           setSelectedMessage(null);
@@ -391,10 +391,10 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
         // Update user message counts locally & in table
         fetchUsers();
       } else {
-        toast("Không thể xóa thư này", "error");
+        toast("Failed to delete message", "error");
       }
     } catch {
-      toast("Lỗi khi xóa thư", "error");
+      toast("Error deleting message", "error");
     }
   };
 
@@ -406,17 +406,13 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
           <div className="flex items-center gap-2 mb-1.5">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-500/20 text-purple-300 border border-purple-500/30">
               <ShieldCheck className="h-3.5 w-3.5" />
-              Bảng điều khiển Quản trị viên
+              Admin Console
             </span>
-            <span className="text-xs text-zinc-400">Mailtion Admin Core</span>
           </div>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white flex items-center gap-2">
             <Users className="h-6 w-6 text-purple-400" />
-            Quản trị & Giám sát Người dùng
+            User Management
           </h1>
-          <p className="text-sm text-zinc-300 mt-1 max-w-2xl">
-            Quản lý toàn bộ tài khoản người dùng, phân quyền, tạm dừng hoặc mở khóa tài khoản và trực tiếp xem danh sách thư của từng người dùng.
-          </p>
         </div>
 
         <div className="flex items-center gap-2.5 self-start sm:self-center shrink-0">
@@ -424,10 +420,10 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
             onClick={() => fetchUsers()}
             disabled={isLoading}
             className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-zinc-700 bg-zinc-800/80 hover:bg-zinc-700 text-zinc-200 text-sm font-medium transition-all active:scale-95 cursor-pointer disabled:opacity-50"
-            title="Làm mới dữ liệu"
+            title="Refresh"
           >
             <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
-            <span className="hidden md:inline">Làm mới</span>
+            <span className="hidden md:inline">Refresh</span>
           </button>
 
           <button
@@ -435,7 +431,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold shadow-md hover:shadow-purple-500/20 transition-all active:scale-95 cursor-pointer"
           >
             <Plus className="h-4 w-4" />
-            <span>Thêm người dùng</span>
+            <span>Add User</span>
           </button>
         </div>
       </div>
@@ -444,7 +440,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3.5 sm:gap-4">
         <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs dark:border-zinc-800 dark:bg-zinc-900 transition-colors">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Tổng người dùng</span>
+            <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Total Users</span>
             <div className="rounded-lg p-2 bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400">
               <Users className="h-4 w-4" />
             </div>
@@ -452,12 +448,11 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
           <div className="mt-2 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
             {stats.totalUsers}
           </div>
-          <span className="text-[11px] text-zinc-500 dark:text-zinc-400">Tài khoản trong hệ thống</span>
         </div>
 
         <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs dark:border-zinc-800 dark:bg-zinc-900 transition-colors">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Đang hoạt động</span>
+            <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Active</span>
             <div className="rounded-lg p-2 bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400">
               <UserCheck className="h-4 w-4" />
             </div>
@@ -465,12 +460,11 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
           <div className="mt-2 text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-400">
             {stats.activeUsers}
           </div>
-          <span className="text-[11px] text-emerald-600/80 dark:text-emerald-400/80">Có thể đăng nhập & nhận thư</span>
         </div>
 
         <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs dark:border-zinc-800 dark:bg-zinc-900 transition-colors">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Đã tạm dừng</span>
+            <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Suspended</span>
             <div className="rounded-lg p-2 bg-amber-50 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400">
               <UserX className="h-4 w-4" />
             </div>
@@ -478,12 +472,11 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
           <div className="mt-2 text-2xl font-bold tracking-tight text-amber-600 dark:text-amber-400">
             {stats.suspendedUsers}
           </div>
-          <span className="text-[11px] text-amber-600/80 dark:text-amber-400/80">Bị khóa phiên & đăng nhập</span>
         </div>
 
         <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs dark:border-zinc-800 dark:bg-zinc-900 transition-colors">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Quản trị viên (Admin)</span>
+            <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Admins</span>
             <div className="rounded-lg p-2 bg-purple-50 text-purple-600 dark:bg-purple-950/50 dark:text-purple-400">
               <ShieldCheck className="h-4 w-4" />
             </div>
@@ -491,12 +484,11 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
           <div className="mt-2 text-2xl font-bold tracking-tight text-purple-600 dark:text-purple-400">
             {stats.adminUsers}
           </div>
-          <span className="text-[11px] text-purple-600/80 dark:text-purple-400/80">Toàn quyền hệ thống</span>
         </div>
 
         <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs dark:border-zinc-800 dark:bg-zinc-900 col-span-2 lg:col-span-1 transition-colors">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Tổng thư nhận</span>
+            <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Messages</span>
             <div className="rounded-lg p-2 bg-sky-50 text-sky-600 dark:bg-sky-950/50 dark:text-sky-400">
               <Mail className="h-4 w-4" />
             </div>
@@ -504,7 +496,6 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
           <div className="mt-2 text-2xl font-bold tracking-tight text-sky-600 dark:text-sky-400">
             {stats.totalUserMessages}
           </div>
-          <span className="text-[11px] text-zinc-500 dark:text-zinc-400">Thư nhận qua các tài khoản</span>
         </div>
       </div>
 
@@ -516,7 +507,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
             <input
               type="text"
-              placeholder="Tìm theo username, địa chỉ email, email khôi phục..."
+              placeholder="Search username, email, recovery email..."
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
@@ -541,7 +532,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
           <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
             <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl text-xs font-medium">
               <span className="text-zinc-400 px-2 flex items-center gap-1">
-                <Filter className="h-3 w-3" /> Trạng thái:
+                <Filter className="h-3 w-3" /> Status:
               </span>
               {(["all", "active", "suspended"] as const).map((s) => (
                 <button
@@ -556,13 +547,13 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                       : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200"
                   }`}
                 >
-                  {s === "all" ? "Tất cả" : s === "active" ? "Hoạt động" : "Đã tạm dừng"}
+                  {s === "all" ? "All" : s === "active" ? "Active" : "Suspended"}
                 </button>
               ))}
             </div>
 
             <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl text-xs font-medium">
-              <span className="text-zinc-400 px-2">Vai trò:</span>
+              <span className="text-zinc-400 px-2">Role:</span>
               {(["all", "user", "admin"] as const).map((r) => (
                 <button
                   key={r}
@@ -576,7 +567,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                       : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200"
                   }`}
                 >
-                  {r === "all" ? "Tất cả" : r === "user" ? "User" : "Admin"}
+                  {r === "all" ? "All" : r === "user" ? "User" : "Admin"}
                 </button>
               ))}
             </div>
@@ -590,14 +581,14 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
           <table className="w-full text-left border-collapse text-sm">
             <thead>
               <tr className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/75 dark:bg-zinc-800/50 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                <th className="py-3.5 px-4 sm:px-6">Người dùng</th>
-                <th className="py-3.5 px-4 hidden md:table-cell">Email khôi phục</th>
-                <th className="py-3.5 px-4">Vai trò</th>
-                <th className="py-3.5 px-4">Trạng thái</th>
-                <th className="py-3.5 px-4 text-center hidden sm:table-cell">Hộp thư</th>
-                <th className="py-3.5 px-4 text-center hidden sm:table-cell">Thư nhận</th>
-                <th className="py-3.5 px-4 hidden lg:table-cell">Ngày tạo</th>
-                <th className="py-3.5 px-4 sm:px-6 text-right">Thao tác</th>
+                <th className="py-3.5 px-4 sm:px-6">User</th>
+                <th className="py-3.5 px-4 hidden md:table-cell">Recovery Email</th>
+                <th className="py-3.5 px-4">Role</th>
+                <th className="py-3.5 px-4">Status</th>
+                <th className="py-3.5 px-4 text-center hidden sm:table-cell">Mailboxes</th>
+                <th className="py-3.5 px-4 text-center hidden sm:table-cell">Messages</th>
+                <th className="py-3.5 px-4 hidden lg:table-cell">Created</th>
+                <th className="py-3.5 px-4 sm:px-6 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800/60">
@@ -605,8 +596,8 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                 <tr>
                   <td colSpan={8} className="py-12 text-center text-zinc-500 dark:text-zinc-400">
                     <Users className="h-10 w-10 mx-auto text-zinc-300 dark:text-zinc-600 mb-2" />
-                    <p className="font-medium">Không tìm thấy người dùng nào</p>
-                    <p className="text-xs text-zinc-400 mt-1">Thử đổi từ khóa tìm kiếm hoặc bỏ bộ lọc</p>
+                    <p className="font-medium">No users found</p>
+                    <p className="text-xs text-zinc-400 mt-1">Try adjusting your search or filters</p>
                   </td>
                 </tr>
               ) : (
@@ -640,7 +631,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                               </span>
                               {isSelf && (
                                 <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300">
-                                  Bạn
+                                  You
                                 </span>
                               )}
                             </div>
@@ -649,7 +640,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                               <button
                                 onClick={() => handleCopy(u.email || `${u.username}@mailtion.com`)}
                                 className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-0.5"
-                                title="Sao chép địa chỉ email"
+                                title="Copy email address"
                               >
                                 {copiedText === (u.email || `${u.username}@mailtion.com`) ? (
                                   <Check className="h-3 w-3 text-emerald-500" />
@@ -667,7 +658,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                         {u.recovery_email ? (
                           <span>{u.recovery_email}</span>
                         ) : (
-                          <span className="text-zinc-400 italic">Chưa thiết lập</span>
+                          <span className="text-zinc-400 italic">Not set</span>
                         )}
                       </td>
 
@@ -689,12 +680,12 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                         {isSuspended ? (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-400 border border-red-200 dark:border-red-900/50">
                             <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
-                            Đã tạm dừng
+                            Suspended
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50">
                             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                            Hoạt động
+                            Active
                           </span>
                         )}
                       </td>
@@ -702,14 +693,14 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                       {/* Mailbox count */}
                       <td className="py-3.5 px-4 text-center hidden sm:table-cell">
                         <div className="inline-flex flex-col items-center gap-0.5">
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300" title="Hộp thư hiện có / Hạn mức tối đa">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300" title="Current mailboxes / Quota">
                             <span className="font-semibold text-zinc-900 dark:text-zinc-100">{u.mailbox_count || 1}</span>
                             <span className="text-zinc-400">/</span>
                             <span>{u.role === "admin" ? "∞" : (u.max_mailboxes || 1)}</span>
                           </span>
                           {u.role !== "admin" && (u.max_mailboxes || 1) > 1 && (
                             <span className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold">
-                              Đã cấp quyền ({u.max_mailboxes})
+                              Limit: {u.max_mailboxes}
                             </span>
                           )}
                         </div>
@@ -730,17 +721,17 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                       {/* Actions */}
                       <td className="py-3.5 px-4 sm:px-6 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          {/* Button: Xem danh sách thư */}
+                          {/* Button: Inspect mail */}
                           <button
                             onClick={() => openInspectModal(u)}
                             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-purple-200 dark:border-purple-800/60 bg-purple-50 hover:bg-purple-100 text-purple-700 dark:bg-purple-950/40 dark:hover:bg-purple-900/50 dark:text-purple-300 text-xs font-medium transition-all active:scale-95 cursor-pointer shadow-2xs"
-                            title="Xem danh sách hộp thư và toàn bộ email đã nhận của người dùng này"
+                            title="Inspect inboxes and messages"
                           >
                             <Inbox className="h-3.5 w-3.5" />
-                            <span className="hidden xl:inline">Xem thư</span>
+                            <span className="hidden xl:inline">View Mail</span>
                           </button>
 
-                          {/* Button: Tạm dừng / Kích hoạt lại */}
+                          {/* Button: Suspend / Resume */}
                           <button
                             onClick={() => handleToggleStatus(u)}
                             disabled={isSelf || togglingId === u.id}
@@ -751,10 +742,10 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                             }`}
                             title={
                               isSelf
-                                ? "Không thể tự tạm dừng tài khoản đang đăng nhập"
+                                ? "Cannot suspend own account"
                                 : isSuspended
-                                ? "Kích hoạt lại tài khoản"
-                                : "Tạm dừng tài khoản này"
+                                ? "Reactivate user"
+                                : "Suspend user"
                             }
                           >
                             {togglingId === u.id ? (
@@ -766,21 +757,21 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                             )}
                           </button>
 
-                          {/* Button: Sửa */}
+                          {/* Button: Edit */}
                           <button
                             onClick={() => openEditModal(u)}
                             className="p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-600 hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-white transition-all active:scale-95 cursor-pointer"
-                            title="Chỉnh sửa thông tin / Đổi mật khẩu"
+                            title="Edit user"
                           >
                             <Edit2 className="h-3.5 w-3.5" />
                           </button>
 
-                          {/* Button: Xóa */}
+                          {/* Button: Delete */}
                           <button
                             onClick={() => setDeletingUser(u)}
                             disabled={isSelf}
                             className="p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 hover:border-red-300 bg-white dark:bg-zinc-800 text-zinc-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400 transition-all active:scale-95 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-                            title={isSelf ? "Không thể xóa chính tài khoản của bạn" : "Xóa tài khoản người dùng này"}
+                            title={isSelf ? "Cannot delete own account" : "Delete user"}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -798,7 +789,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
         {totalPages > 1 && (
           <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-t border-zinc-200 dark:border-zinc-800 text-xs text-zinc-500 dark:text-zinc-400 bg-zinc-50/50 dark:bg-zinc-850">
             <div>
-              Trang {page} / {totalPages} (Tổng số {total} người dùng)
+              Page {page} of {totalPages} ({total} users)
             </div>
             <div className="flex items-center gap-1.5">
               <button
@@ -820,7 +811,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
         )}
       </div>
 
-      {/* MODAL 1: THÊM NGƯỜI DÙNG */}
+      {/* MODAL 1: ADD USER */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
           <div className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-6 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900 animate-in fade-in zoom-in-95 duration-150">
@@ -830,8 +821,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                   <Plus className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100">Thêm người dùng mới</h3>
-                  <p className="text-xs text-zinc-500">Khởi tạo tài khoản trực tiếp không cần qua OTP</p>
+                  <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100">Add User</h3>
                 </div>
               </div>
               <button
@@ -845,13 +835,13 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
             <form onSubmit={handleCreateUser} className="space-y-4 mt-4">
               <div>
                 <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                  Tên người dùng (Username) *
+                  Username *
                 </label>
                 <div className="relative">
                   <input
                     type="text"
                     required
-                    placeholder="vidu: nguyenvana"
+                    placeholder="e.g. johndoe"
                     value={addForm.username}
                     onChange={(e) =>
                       setAddForm({ ...addForm, username: e.target.value.toLowerCase().trim() })
@@ -861,7 +851,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                 </div>
                 {addForm.username && (
                   <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-1 font-mono">
-                    Hộp thư chính sẽ tạo:{" "}
+                    Primary address:{" "}
                     <span className="text-purple-600 dark:text-purple-400 font-semibold">
                       {addForm.username}@mailtion.com
                     </span>
@@ -871,13 +861,13 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
 
               <div>
                 <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                  Mật khẩu khởi tạo *
+                  Initial Password *
                 </label>
                 <div className="relative">
                   <input
                     type={showAddPassword ? "text" : "password"}
                     required
-                    placeholder="Ít nhất 6 ký tự"
+                    placeholder="At least 6 characters"
                     value={addForm.password}
                     onChange={(e) => setAddForm({ ...addForm, password: e.target.value })}
                     className="w-full pl-3.5 pr-10 py-2 text-sm rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-hidden focus:ring-2 focus:ring-purple-500"
@@ -894,11 +884,11 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
 
               <div>
                 <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                  Email khôi phục (Tùy chọn)
+                  Recovery Email (Optional)
                 </label>
                 <input
                   type="email"
-                  placeholder="gmail, outlook... của người dùng"
+                  placeholder="user@example.com"
                   value={addForm.recoveryEmail}
                   onChange={(e) => setAddForm({ ...addForm, recoveryEmail: e.target.value })}
                   className="w-full px-3.5 py-2 text-sm rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-hidden focus:ring-2 focus:ring-purple-500"
@@ -908,7 +898,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                    Phân quyền (Role)
+                    Role
                   </label>
                   <select
                     value={addForm.role}
@@ -917,14 +907,14 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                     }
                     className="w-full px-3 py-2 text-sm rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-zinc-900 dark:text-zinc-100 focus:outline-hidden focus:ring-2 focus:ring-purple-500 cursor-pointer"
                   >
-                    <option value="user">User thường</option>
-                    <option value="admin">Quản trị viên (Admin)</option>
+                    <option value="user">Standard User</option>
+                    <option value="admin">Administrator</option>
                   </select>
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                    Trạng thái ban đầu
+                    Status
                   </label>
                   <select
                     value={addForm.status}
@@ -933,8 +923,8 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                     }
                     className="w-full px-3 py-2 text-sm rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-zinc-900 dark:text-zinc-100 focus:outline-hidden focus:ring-2 focus:ring-purple-500 cursor-pointer"
                   >
-                    <option value="active">Hoạt động (Active)</option>
-                    <option value="suspended">Tạm dừng (Suspended)</option>
+                    <option value="active">Active</option>
+                    <option value="suspended">Suspended</option>
                   </select>
                 </div>
               </div>
@@ -942,7 +932,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
               {addForm.role !== "admin" && (
                 <div>
                   <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                    Cấp quyền tạo nhiều email (Hạn mức hộp thư)
+                    Mailbox Quota
                   </label>
                   <div className="flex items-center gap-2">
                     <input
@@ -957,8 +947,8 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                     />
                     <span className="text-xs text-zinc-500 dark:text-zinc-400">
                       {addForm.maxMailboxes <= 1
-                        ? "(Mặc định 1: Chỉ 1 email duy nhất)"
-                        : `(Đã cấp quyền: Tối đa ${addForm.maxMailboxes} email)`}
+                        ? "(Single mailbox)"
+                        : `(Up to ${addForm.maxMailboxes} mailboxes)`}
                     </span>
                   </div>
                 </div>
@@ -970,7 +960,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                   onClick={() => setIsAddModalOpen(false)}
                   className="px-4 py-2 text-xs font-semibold rounded-xl border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 transition-colors cursor-pointer"
                 >
-                  Hủy bỏ
+                  Cancel
                 </button>
                 <button
                   type="submit"
@@ -978,7 +968,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                   className="px-4 py-2 text-xs font-semibold rounded-xl bg-purple-600 hover:bg-purple-500 text-white shadow-xs transition-all active:scale-95 disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
                 >
                   {isSubmittingAdd && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
-                  Tạo tài khoản
+                  Create User
                 </button>
               </div>
             </form>
@@ -986,7 +976,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
         </div>
       )}
 
-      {/* MODAL 2: SỬA NGƯỜI DÙNG */}
+      {/* MODAL 2: EDIT USER */}
       {editingUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
           <div className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-6 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900 animate-in fade-in zoom-in-95 duration-150">
@@ -997,9 +987,8 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
-                    Chỉnh sửa @{editingUser.username}
+                    Edit @{editingUser.username}
                   </h3>
-                  <p className="text-xs text-zinc-500">Cập nhật quyền hạn, trạng thái hoặc đổi mật khẩu</p>
                 </div>
               </div>
               <button
@@ -1013,7 +1002,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
             <form onSubmit={handleEditUser} className="space-y-4 mt-4">
               <div>
                 <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                  Tên người dùng (Username)
+                  Username
                 </label>
                 <input
                   type="text"
@@ -1028,11 +1017,11 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
 
               <div>
                 <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                  Email khôi phục
+                  Recovery Email
                 </label>
                 <input
                   type="email"
-                  placeholder="name@gmail.com"
+                  placeholder="user@example.com"
                   value={editForm.recoveryEmail}
                   onChange={(e) => setEditForm({ ...editForm, recoveryEmail: e.target.value })}
                   className="w-full px-3.5 py-2 text-sm rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-zinc-900 dark:text-zinc-100"
@@ -1042,7 +1031,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                    Vai trò (Role)
+                    Role
                   </label>
                   <select
                     value={editForm.role}
@@ -1052,14 +1041,14 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                     }
                     className="w-full px-3 py-2 text-sm rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-zinc-900 dark:text-zinc-100 disabled:opacity-50 cursor-pointer"
                   >
-                    <option value="user">User thường</option>
-                    <option value="admin">Quản trị viên (Admin)</option>
+                    <option value="user">Standard User</option>
+                    <option value="admin">Administrator</option>
                   </select>
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                    Trạng thái
+                    Status
                   </label>
                   <select
                     value={editForm.status}
@@ -1069,8 +1058,8 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                     }
                     className="w-full px-3 py-2 text-sm rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-zinc-900 dark:text-zinc-100 disabled:opacity-50 cursor-pointer"
                   >
-                    <option value="active">Hoạt động (Active)</option>
-                    <option value="suspended">Tạm dừng (Suspended)</option>
+                    <option value="active">Active</option>
+                    <option value="suspended">Suspended</option>
                   </select>
                 </div>
               </div>
@@ -1078,7 +1067,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
               {editForm.role !== "admin" && (
                 <div>
                   <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                    Cấp quyền tạo nhiều email (Hạn mức hộp thư)
+                    Mailbox Quota
                   </label>
                   <div className="flex items-center gap-2">
                     <input
@@ -1093,8 +1082,8 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                     />
                     <span className="text-xs text-zinc-500 dark:text-zinc-400">
                       {editForm.maxMailboxes <= 1
-                        ? "(Mặc định 1: Chỉ 1 email, không hiển thị chức năng tạo email)"
-                        : `(Đã cấp quyền: Cho phép user tự tạo tối đa ${editForm.maxMailboxes} email)`}
+                        ? "(Single mailbox)"
+                        : `(Up to ${editForm.maxMailboxes} mailboxes)`}
                     </span>
                   </div>
                 </div>
@@ -1102,12 +1091,12 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
 
               <div>
                 <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                  Đổi mật khẩu mới (Bỏ trống nếu không đổi)
+                  New Password (leave blank to keep current)
                 </label>
                 <div className="relative">
                   <input
                     type={showEditPassword ? "text" : "password"}
-                    placeholder="Nhập mật khẩu mới nếu muốn đặt lại"
+                    placeholder="Enter new password"
                     value={editForm.password}
                     onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
                     className="w-full pl-3.5 pr-10 py-2 text-sm rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-hidden focus:ring-2 focus:ring-purple-500"
@@ -1128,7 +1117,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                   onClick={() => setEditingUser(null)}
                   className="px-4 py-2 text-xs font-semibold rounded-xl border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 transition-colors cursor-pointer"
                 >
-                  Hủy bỏ
+                  Cancel
                 </button>
                 <button
                   type="submit"
@@ -1136,7 +1125,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                   className="px-4 py-2 text-xs font-semibold rounded-xl bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-white text-white dark:text-zinc-900 shadow-xs transition-all active:scale-95 disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
                 >
                   {isSubmittingEdit && <RefreshCw className="h-3.5 w-3.5 animate-spin" />}
-                  Lưu thay đổi
+                  Save Changes
                 </button>
               </div>
             </form>
@@ -1144,7 +1133,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
         </div>
       )}
 
-      {/* MODAL 3: XÁC NHẬN XÓA NGƯỜI DÙNG */}
+      {/* MODAL 3: DELETE USER */}
       {deletingUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
           <div className="w-full max-w-sm rounded-2xl border border-red-200 dark:border-red-900/60 bg-white p-6 shadow-2xl dark:bg-zinc-900 animate-in fade-in zoom-in-95 duration-150">
@@ -1153,14 +1142,14 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                 <AlertTriangle className="h-6 w-6" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100">Xác nhận xóa tài khoản</h3>
-                <p className="text-xs text-red-600 dark:text-red-400">Hành động này không thể hoàn tác</p>
+                <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100">Delete User</h3>
+                <p className="text-xs text-red-600 dark:text-red-400">This action cannot be undone.</p>
               </div>
             </div>
 
             <p className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed mb-4">
-              Bạn có chắc chắn muốn xóa tài khoản{" "}
-              <strong className="text-zinc-900 dark:text-zinc-100">@{deletingUser.username}</strong>? Toàn bộ các hộp thư, tin nhắn và tệp đính kèm thuộc người dùng này sẽ bị xóa hoàn toàn khỏi hệ thống.
+              Are you sure you want to delete user{" "}
+              <strong className="text-zinc-900 dark:text-zinc-100">@{deletingUser.username}</strong>? All associated mailboxes, messages, and attachments will be permanently removed.
             </p>
 
             <div className="flex items-center justify-end gap-2.5">
@@ -1168,13 +1157,13 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                 onClick={() => setDeletingUser(null)}
                 className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 cursor-pointer"
               >
-                Hủy bỏ
+                Cancel
               </button>
               <button
                 onClick={handleDeleteUser}
                 className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-red-600 hover:bg-red-500 text-white shadow-xs transition-all active:scale-95 cursor-pointer"
               >
-                Xác nhận xóa
+                Delete User
               </button>
             </div>
           </div>
@@ -1194,9 +1183,9 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                 <div>
                   <div className="flex items-center gap-2">
                     <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
-                      Hộp thư & Email của @{inspectingUser.username}
+                      User Inboxes: @{inspectingUser.username}
                     </h2>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300 capitalize">
                       {inspectingUser.role}
                     </span>
                   </div>
@@ -1217,7 +1206,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                     )
                   }
                   className="p-2 rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
-                  title="Làm mới thư"
+                  title="Refresh messages"
                 >
                   <RefreshCw className={`h-4 w-4 ${loadingMessages ? "animate-spin" : ""}`} />
                 </button>
@@ -1236,7 +1225,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                 <Search className="h-3.5 w-3.5 text-zinc-400" />
                 <input
                   type="text"
-                  placeholder="Tìm kiếm thư (tiêu đề, người gửi, mã OTP)..."
+                  placeholder="Search messages (subject, sender, OTP)..."
                   value={messageSearch}
                   onChange={(e) => handleFilterInspector(selectedMailboxId, e.target.value, unreadOnly)}
                   className="w-full bg-transparent border-0 text-xs text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-hidden"
@@ -1250,10 +1239,10 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                   onChange={(e) => handleFilterInspector(e.target.value, messageSearch, unreadOnly)}
                   className="px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-xs font-medium cursor-pointer"
                 >
-                  <option value="">Tất cả hòm thư ({userMailboxes.length})</option>
+                  <option value="">All Mailboxes ({userMailboxes.length})</option>
                   {userMailboxes.map((mb) => (
                     <option key={mb.id} value={mb.id}>
-                      {mb.address} {mb.is_primary ? "★ (Chính)" : ""} ({mb.message_count || 0})
+                      {mb.address} {mb.is_primary ? "★ (Primary)" : ""} ({mb.message_count || 0})
                     </option>
                   ))}
                 </select>
@@ -1267,7 +1256,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                       : "border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
                   }`}
                 >
-                  Chỉ chưa đọc
+                  Unread only
                 </button>
               </div>
             </div>
@@ -1279,13 +1268,13 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                 {loadingMessages ? (
                   <div className="p-8 text-center text-zinc-400">
                     <RefreshCw className="h-6 w-6 mx-auto animate-spin mb-2" />
-                    <p className="text-xs">Đang tải danh sách thư...</p>
+                    <p className="text-xs">Loading messages...</p>
                   </div>
                 ) : userMessages.length === 0 ? (
                   <div className="p-8 text-center text-zinc-400">
                     <Mail className="h-8 w-8 mx-auto text-zinc-300 dark:text-zinc-600 mb-2" />
-                    <p className="text-xs font-medium">Không có thư nào</p>
-                    <p className="text-[11px] text-zinc-500 mt-1">Người dùng này chưa nhận được email nào</p>
+                    <p className="text-xs font-medium">No messages found</p>
+                    <p className="text-[11px] text-zinc-500 mt-1">This user has not received any emails yet</p>
                   </div>
                 ) : (
                   userMessages.map((msg) => {
@@ -1310,12 +1299,12 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                         </div>
 
                         <div className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate mb-1">
-                          {msg.subject || "(Không có tiêu đề)"}
+                          {msg.subject || "(No subject)"}
                         </div>
 
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="text-[10px] text-zinc-400 font-mono truncate max-w-[160px]">
-                            Đến: {msg.to_addr}
+                            To: {msg.to_addr}
                           </span>
 
                           {msg.otp_code && (
@@ -1342,12 +1331,12 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                     <div className="pb-4 border-b border-zinc-200 dark:border-zinc-800 space-y-3">
                       <div className="flex items-start justify-between gap-4">
                         <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
-                          {selectedMessage.subject || "(Không có tiêu đề)"}
+                          {selectedMessage.subject || "(No subject)"}
                         </h3>
                         <button
                           onClick={() => handleDeleteMessage(selectedMessage.id)}
                           className="p-1.5 text-zinc-400 hover:text-red-600 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors shrink-0 cursor-pointer"
-                          title="Xóa thư này"
+                          title="Delete message"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -1355,31 +1344,31 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-zinc-600 dark:text-zinc-300 bg-zinc-50 dark:bg-zinc-800/50 p-3 rounded-xl border border-zinc-200/60 dark:border-zinc-800">
                         <div>
-                          <span className="text-zinc-400">Từ: </span>
+                          <span className="text-zinc-400">From: </span>
                           <strong className="font-semibold text-zinc-900 dark:text-zinc-100">
                             {selectedMessage.from_name ? `${selectedMessage.from_name} <${selectedMessage.from_addr}>` : selectedMessage.from_addr}
                           </strong>
                         </div>
                         <div>
-                          <span className="text-zinc-400">Đến: </span>
+                          <span className="text-zinc-400">To: </span>
                           <strong className="font-semibold text-zinc-900 dark:text-zinc-100 font-mono">
                             {selectedMessage.to_addr}
                           </strong>
                         </div>
                         <div>
-                          <span className="text-zinc-400">Thời gian: </span>
+                          <span className="text-zinc-400">Date: </span>
                           <span>{formatDate(selectedMessage.created_at)}</span>
                         </div>
                         {selectedMessage.otp_code && (
                           <div className="flex items-center gap-2">
-                            <span className="text-zinc-400">Mã OTP: </span>
+                            <span className="text-zinc-400">OTP Code: </span>
                             <span className="font-mono font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-900">
                               {selectedMessage.otp_code}
                             </span>
                             <button
                               onClick={() => handleCopy(selectedMessage.otp_code!)}
                               className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer"
-                              title="Sao chép OTP"
+                              title="Copy OTP"
                             >
                               <Copy className="h-3 w-3" />
                             </button>
@@ -1397,7 +1386,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                               : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                           }`}
                         >
-                          Giao diện HTML
+                          HTML Preview
                         </button>
                         <button
                           onClick={() => setActiveMessageViewTab("text")}
@@ -1407,7 +1396,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                               : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                           }`}
                         >
-                          Văn bản thuần (Text)
+                          Plain Text
                         </button>
                         <button
                           onClick={() => setActiveMessageViewTab("headers")}
@@ -1436,20 +1425,20 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                           </div>
                         ) : (
                           <pre className="whitespace-pre-wrap font-sans text-sm text-zinc-800 dark:text-zinc-200 bg-zinc-50 dark:bg-zinc-800/40 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800">
-                            {selectedMessage.body_text || "(Nội dung trống)"}
+                            {selectedMessage.body_text || "(Empty content)"}
                           </pre>
                         )
                       )}
 
                       {activeMessageViewTab === "text" && (
                         <pre className="whitespace-pre-wrap font-mono text-xs text-zinc-800 dark:text-zinc-200 bg-zinc-50 dark:bg-zinc-800/40 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-x-auto">
-                          {selectedMessage.body_text || "(Không có nội dung dạng văn bản)"}
+                          {selectedMessage.body_text || "(No plain text content)"}
                         </pre>
                       )}
 
                       {activeMessageViewTab === "headers" && (
                         <pre className="whitespace-pre-wrap font-mono text-[11px] text-zinc-700 dark:text-zinc-300 bg-zinc-50 dark:bg-zinc-800/40 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-x-auto">
-                          {selectedMessage.raw_headers || "(Không có raw headers)"}
+                          {selectedMessage.raw_headers || "(No raw headers)"}
                         </pre>
                       )}
                     </div>
@@ -1458,7 +1447,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                   <div className="flex-1 flex flex-col items-center justify-center p-8 text-zinc-400">
                     <Mail className="h-12 w-12 text-zinc-300 dark:text-zinc-700 mb-3" />
                     <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
-                      Chọn một bức thư từ danh sách bên trái để đọc nội dung
+                      Select a message from the list to view its contents
                     </p>
                   </div>
                 )}

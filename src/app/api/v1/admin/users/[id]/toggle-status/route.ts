@@ -15,7 +15,7 @@ export async function POST(
     const { id } = await params;
 
     if (currentUser.id === id) {
-      return NextResponse.json({ error: "Không thể tự thay đổi trạng thái của chính mình." }, { status: 400 });
+      return NextResponse.json({ error: "You cannot change status of your own account." }, { status: 400 });
     }
 
     const targetUser = db.prepare("SELECT id, username, COALESCE(status, 'active') as status FROM users WHERE id = ?").get(id) as {
@@ -25,7 +25,7 @@ export async function POST(
     } | undefined;
 
     if (!targetUser) {
-      return NextResponse.json({ error: "Người dùng không tồn tại" }, { status: 404 });
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
     const newStatus = targetUser.status === "suspended" ? "active" : "suspended";
@@ -42,7 +42,7 @@ export async function POST(
     return NextResponse.json({
       success: true,
       status: newStatus,
-      message: newStatus === "active" ? `Đã kích hoạt lại tài khoản @${targetUser.username}` : `Đã tạm dừng tài khoản @${targetUser.username}`
+      message: newStatus === "active" ? `Account @${targetUser.username} reactivated` : `Account @${targetUser.username} suspended`
     });
   } catch (error: unknown) {
     console.error("[Admin Toggle Status] Error:", error);
