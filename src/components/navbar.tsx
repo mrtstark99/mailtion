@@ -41,7 +41,7 @@ export function Navbar({
 
   return (
     <header className="sticky top-0 z-30 w-full border-b border-zinc-200 bg-white/85 backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/85 transition-colors font-sans">
-      <div className="mx-auto flex h-14 sm:h-16 w-full max-w-screen-2xl items-center justify-between px-3 sm:px-6 lg:px-8">
+      <div className="flex h-14 sm:h-16 w-full max-w-none items-center justify-between px-3 sm:px-6 lg:px-8">
         <div className="flex items-center gap-2 sm:gap-3">
           <div
             className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl overflow-hidden shadow-xs hover:scale-105 transition-transform bg-zinc-100 dark:bg-zinc-800 cursor-pointer"
