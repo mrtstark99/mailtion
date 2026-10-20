@@ -30,9 +30,24 @@ import {
   Paperclip,
   CheckCircle2,
   Filter,
+  ArrowLeft,
+  Download,
+  KeyRound,
+  MailOpen,
+  Star,
+  AtSign,
+  Layers,
+  SlidersHorizontal,
 } from "lucide-react";
 import { useToast } from "./toast";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatFullDate, extractOtpCode } from "@/lib/utils";
+
+interface AttachmentItem {
+  id: string;
+  filename: string;
+  content_type: string;
+  size: number;
+}
 
 interface UserItem {
   id: string;
@@ -75,6 +90,33 @@ interface UserMessage {
   has_attachments: number;
   otp_code: string | null;
   created_at: string;
+  attachments?: AttachmentItem[];
+}
+
+function SenderAvatar({ name, addr }: { name: string | null; addr: string }) {
+  const letter = (name || addr || "?").charAt(0).toUpperCase();
+  const colors = [
+    "bg-indigo-600 text-white",
+    "bg-purple-600 text-white",
+    "bg-blue-600 text-white",
+    "bg-emerald-600 text-white",
+    "bg-amber-600 text-white",
+    "bg-rose-600 text-white",
+    "bg-teal-600 text-white",
+  ];
+  const idx = (addr || "a").charCodeAt(0) % colors.length;
+  return (
+    <div className={`h-8 w-8 sm:h-9 sm:w-9 rounded-xl flex items-center justify-center font-bold text-xs uppercase shrink-0 shadow-2xs ${colors[idx]}`}>
+      {letter}
+    </div>
+  );
+}
+
+function formatSize(bytes: number) {
+  if (!bytes) return "0 B";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 interface TabAdminDashboardProps {
@@ -150,9 +192,14 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
   const [selectedMailboxId, setSelectedMailboxId] = useState<string>("");
   const [messageSearch, setMessageSearch] = useState<string>("");
   const [unreadOnly, setUnreadOnly] = useState<boolean>(false);
+  const [quickFilter, setQuickFilter] = useState<"all" | "unread" | "otp" | "attachments">("all");
   const [selectedMessage, setSelectedMessage] = useState<UserMessage | null>(null);
   const [loadingMessages, setLoadingMessages] = useState<boolean>(false);
   const [activeMessageViewTab, setActiveMessageViewTab] = useState<"html" | "text" | "headers">("html");
+  const [mobilePane, setMobilePane] = useState<"list" | "detail">("list");
+  const [copiedOtp, setCopiedOtp] = useState<string | null>(null);
+  const [copiedHeaders, setCopiedHeaders] = useState<boolean>(false);
+  const [isFetchingFullMessage, setIsFetchingFullMessage] = useState<boolean>(false);
 
   // Fetch users list
   const fetchUsers = useCallback(async () => {
@@ -324,14 +371,43 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
     }
   };
 
-  // Open Inspect User Emails Modal
+  // Helper to extract OTP from message
+  const getOtp = useCallback((msg: UserMessage) => {
+    if (msg.otp_code && /^[0-9]{4,8}$/.test(msg.otp_code.trim())) {
+      return msg.otp_code.trim();
+    }
+    const textToScan = `${msg.subject || ""} ${msg.body_text || ""}`;
+    const extracted = extractOtpCode(textToScan);
+    return extracted ? extracted.replace(/\D/g, "") : null;
+  }, []);
+
+  // Keyboard shortcut listener for Esc and body overflow lock
+  useEffect(() => {
+    if (!inspectingUser) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setInspectingUser(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [inspectingUser]);
+
+  // Open Inspect User Emails Fullscreen View
   const openInspectModal = async (user: UserItem) => {
     setInspectingUser(user);
     setSelectedMailboxId("");
     setMessageSearch("");
     setUnreadOnly(false);
+    setQuickFilter("all");
     setSelectedMessage(null);
     setActiveMessageViewTab("html");
+    setMobilePane("list");
     fetchUserMailboxesAndMessages(user.id);
   };
 
@@ -345,7 +421,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
             mailboxId: mbId || "",
             search: searchQ || "",
             unread: unread ? "true" : "false",
-            limit: "50",
+            limit: "100",
           }).toString()}`
         ),
       ]);
@@ -360,7 +436,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
         const items = msgData.items || [];
         setUserMessages(items);
         if (items.length > 0 && !selectedMessage) {
-          setSelectedMessage(items[0]);
+          handleSelectMessage(items[0]);
         }
       }
     } catch {
@@ -376,6 +452,60 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
     setMessageSearch(newSearch);
     setUnreadOnly(newUnread);
     fetchUserMailboxesAndMessages(inspectingUser.id, newMbId, newSearch, newUnread);
+  };
+
+  // Select message and fetch attachments if present
+  const handleSelectMessage = async (msg: UserMessage) => {
+    setSelectedMessage(msg);
+    setMobilePane("detail");
+
+    if (msg.has_attachments === 1 && (!msg.attachments || msg.attachments.length === 0)) {
+      setIsFetchingFullMessage(true);
+      try {
+        const res = await fetch(`/api/v1/messages/${msg.id}`);
+        if (res.ok) {
+          const fullMsg = await res.json();
+          if (fullMsg.attachments) {
+            setSelectedMessage((prev) => (prev?.id === msg.id ? { ...prev, attachments: fullMsg.attachments } : prev));
+            setUserMessages((prev) => prev.map((m) => (m.id === msg.id ? { ...m, attachments: fullMsg.attachments } : m)));
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to fetch full message attachments:", e);
+      } finally {
+        setIsFetchingFullMessage(false);
+      }
+    }
+  };
+
+  // Toggle read / unread status
+  const handleToggleRead = async (msgId: string, currentRead: number) => {
+    const newRead = currentRead === 1 ? 0 : 1;
+    try {
+      const res = await fetch(`/api/v1/messages/${msgId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isRead: newRead === 1 }),
+      });
+      if (res.ok) {
+        setUserMessages((prev) => prev.map((m) => (m.id === msgId ? { ...m, is_read: newRead } : m)));
+        if (selectedMessage?.id === msgId) {
+          setSelectedMessage((prev) => (prev ? { ...prev, is_read: newRead } : null));
+        }
+        toast(newRead === 1 ? "Marked as read" : "Marked as unread", "success");
+      }
+    } catch {
+      toast("Failed to update message status", "error");
+    }
+  };
+
+  // Copy OTP code
+  const handleCopyOtpCode = (e: React.MouseEvent, otp: string) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(otp);
+    setCopiedOtp(otp);
+    toast(`Copied OTP code: ${otp}`, "success");
+    setTimeout(() => setCopiedOtp(null), 2500);
   };
 
   // Delete message inside inspector
@@ -1170,32 +1300,82 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
         </div>
       )}
 
-      {/* MODAL 4: GIÁM SÁT & XEM TOÀN BỘ EMAIL CỦA USER */}
-      {inspectingUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/70 backdrop-blur-sm">
-          <div className="w-full max-w-5xl h-[92vh] max-h-[850px] rounded-2xl border border-zinc-200 bg-white shadow-2xl dark:border-zinc-800 dark:bg-zinc-900 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-850">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300 flex items-center justify-center font-bold text-sm">
-                  {inspectingUser.username.slice(0, 2).toUpperCase()}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
-                      User Inboxes: @{inspectingUser.username}
-                    </h2>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-300 capitalize">
+      {/* FULLSCREEN USER MAIL INSPECTOR */}
+      {inspectingUser && (() => {
+        // Compute message counts & filtered lists
+        const totalUnreadCount = userMessages.filter((m) => m.is_read === 0).length;
+        const totalOtpCount = userMessages.filter((m) => Boolean(getOtp(m))).length;
+        const totalAttachmentsCount = userMessages.filter((m) => m.has_attachments === 1).length;
+
+        const filteredMessages = userMessages.filter((m) => {
+          if (quickFilter === "unread" && m.is_read !== 0) return false;
+          if (quickFilter === "otp" && !getOtp(m)) return false;
+          if (quickFilter === "attachments" && m.has_attachments !== 1) return false;
+          return true;
+        });
+
+        const activeMailbox = userMailboxes.find((mb) => mb.id === selectedMailboxId);
+        const selectedOtp = selectedMessage ? getOtp(selectedMessage) : null;
+
+        return (
+          <div className="fixed inset-0 z-50 bg-zinc-100 dark:bg-zinc-950 flex flex-col overflow-hidden animate-in fade-in duration-150 text-zinc-900 dark:text-zinc-100">
+            {/* Top Workspace Header */}
+            <header className="h-14 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-4 sm:px-6 flex items-center justify-between shrink-0 shadow-2xs">
+              {/* Left: Back button & User Identity */}
+              <div className="flex items-center gap-3 min-w-0">
+                <button
+                  onClick={() => setInspectingUser(null)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-semibold text-zinc-700 dark:text-zinc-200 transition-all active:scale-95 cursor-pointer shrink-0"
+                  title="Back to User Management (Esc)"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  <span className="hidden sm:inline">Back to Users</span>
+                </button>
+
+                <div className="h-5 w-px bg-zinc-200 dark:bg-zinc-800 hidden sm:block shrink-0" />
+
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="h-8 w-8 rounded-lg bg-purple-600 text-white flex items-center justify-center font-bold text-xs uppercase shrink-0 shadow-2xs">
+                    {inspectingUser.username.slice(0, 2)}
+                  </div>
+                  <div className="min-w-0 flex items-center gap-2">
+                    <span className="font-bold text-sm text-zinc-900 dark:text-zinc-100 truncate">
+                      @{inspectingUser.username}
+                    </span>
+                    <span className="text-zinc-400 hidden md:inline">/</span>
+                    <span className="text-xs text-zinc-500 dark:text-zinc-400 font-mono hidden md:inline truncate max-w-[200px] lg:max-w-[280px]">
+                      {inspectingUser.email || `${inspectingUser.username}@mailtion.com`}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 capitalize shrink-0 hidden sm:inline-block">
                       {inspectingUser.role}
                     </span>
+                    {inspectingUser.status === "suspended" ? (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400 shrink-0">
+                        Suspended
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400 shrink-0 hidden lg:inline-flex items-center gap-1">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        Active
+                      </span>
+                    )}
                   </div>
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400 font-mono">
-                    {inspectingUser.email || `${inspectingUser.username}@mailtion.com`}
-                  </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              {/* Right: Counter, Refresh & Close */}
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="hidden xl:inline-flex items-center gap-2 text-xs font-medium text-zinc-500 dark:text-zinc-400 px-3 py-1 rounded-lg bg-zinc-100 dark:bg-zinc-800">
+                  <span>{userMailboxes.length} {userMailboxes.length === 1 ? "Mailbox" : "Mailboxes"}</span>
+                  <span className="text-zinc-300 dark:text-zinc-700">•</span>
+                  <span>{userMessages.length} {userMessages.length === 1 ? "Message" : "Messages"}</span>
+                  {totalUnreadCount > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-blue-500 text-white">
+                      {totalUnreadCount} new
+                    </span>
+                  )}
+                </span>
+
                 <button
                   onClick={() =>
                     fetchUserMailboxesAndMessages(
@@ -1205,194 +1385,436 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                       unreadOnly
                     )
                   }
-                  className="p-2 rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
+                  className="p-2 rounded-xl border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all cursor-pointer"
                   title="Refresh messages"
                 >
                   <RefreshCw className={`h-4 w-4 ${loadingMessages ? "animate-spin" : ""}`} />
                 </button>
+
                 <button
                   onClick={() => setInspectingUser(null)}
-                  className="p-2 rounded-lg text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-zinc-200 dark:border-zinc-700 text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                  title="Close (Esc)"
                 >
-                  <X className="h-5 w-5" />
+                  <X className="h-4 w-4" />
+                  <span className="text-[10px] font-mono text-zinc-400 hidden sm:inline">ESC</span>
                 </button>
               </div>
-            </div>
+            </header>
 
-            {/* Filter Sub-bar */}
-            <div className="px-5 py-3 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex flex-wrap items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-2 flex-1 min-w-[200px] max-w-sm">
-                <Search className="h-3.5 w-3.5 text-zinc-400" />
-                <input
-                  type="text"
-                  placeholder="Search messages (subject, sender, OTP)..."
-                  value={messageSearch}
-                  onChange={(e) => handleFilterInspector(selectedMailboxId, e.target.value, unreadOnly)}
-                  className="w-full bg-transparent border-0 text-xs text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-hidden"
-                />
-              </div>
-
-              <div className="flex items-center gap-2">
-                {/* Select Mailbox */}
-                <select
-                  value={selectedMailboxId}
-                  onChange={(e) => handleFilterInspector(e.target.value, messageSearch, unreadOnly)}
-                  className="px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 text-xs font-medium cursor-pointer"
-                >
-                  <option value="">All Mailboxes ({userMailboxes.length})</option>
-                  {userMailboxes.map((mb) => (
-                    <option key={mb.id} value={mb.id}>
-                      {mb.address} {mb.is_primary ? "★ (Primary)" : ""} ({mb.message_count || 0})
-                    </option>
-                  ))}
-                </select>
-
-                {/* Unread toggle */}
-                <button
-                  onClick={() => handleFilterInspector(selectedMailboxId, messageSearch, !unreadOnly)}
-                  className={`px-2.5 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer transition-colors ${
-                    unreadOnly
-                      ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300"
-                      : "border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                  }`}
-                >
-                  Unread only
-                </button>
-              </div>
-            </div>
-
-            {/* Modal Body: Master - Detail Split */}
+            {/* 3-Panel Fullscreen Body */}
             <div className="flex-1 flex overflow-hidden">
-              {/* Left Column: Messages List */}
-              <div className="w-full sm:w-80 md:w-96 border-r border-zinc-200 dark:border-zinc-800 overflow-y-auto divide-y divide-zinc-200 dark:divide-zinc-800 shrink-0">
-                {loadingMessages ? (
-                  <div className="p-8 text-center text-zinc-400">
-                    <RefreshCw className="h-6 w-6 mx-auto animate-spin mb-2" />
-                    <p className="text-xs">Loading messages...</p>
+              {/* PANEL 1: Mailboxes Sidebar */}
+              <aside className="w-60 lg:w-64 border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/60 flex flex-col shrink-0 hidden md:flex">
+                <div className="p-3.5 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Layers className="h-4 w-4 text-purple-500" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                      Mailboxes
+                    </span>
                   </div>
-                ) : userMessages.length === 0 ? (
-                  <div className="p-8 text-center text-zinc-400">
-                    <Mail className="h-8 w-8 mx-auto text-zinc-300 dark:text-zinc-600 mb-2" />
-                    <p className="text-xs font-medium">No messages found</p>
-                    <p className="text-[11px] text-zinc-500 mt-1">This user has not received any emails yet</p>
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+                    {userMailboxes.length}
+                  </span>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                  {/* Item: All Inboxes */}
+                  <button
+                    onClick={() => handleFilterInspector("", messageSearch, unreadOnly)}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left text-xs font-medium transition-all cursor-pointer ${
+                      selectedMailboxId === ""
+                        ? "bg-purple-600 text-white font-semibold shadow-xs"
+                        : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <Inbox className={`h-4 w-4 shrink-0 ${selectedMailboxId === "" ? "text-white" : "text-purple-500"}`} />
+                      <span className="truncate">All Inboxes</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {totalUnreadCount > 0 && (
+                        <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                          selectedMailboxId === "" ? "bg-white text-purple-700" : "bg-blue-500 text-white"
+                        }`}>
+                          {totalUnreadCount}
+                        </span>
+                      )}
+                      <span className={`text-[11px] ${selectedMailboxId === "" ? "text-purple-100" : "text-zinc-400"}`}>
+                        {userMessages.length}
+                      </span>
+                    </div>
+                  </button>
+
+                  <div className="pt-2 pb-1 px-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+                    Account Inboxes
                   </div>
-                ) : (
-                  userMessages.map((msg) => {
-                    const isSelected = selectedMessage?.id === msg.id;
+
+                  {userMailboxes.map((mb) => {
+                    const isSelected = selectedMailboxId === mb.id;
                     return (
-                      <div
-                        key={msg.id}
-                        onClick={() => setSelectedMessage(msg)}
-                        className={`p-3.5 transition-colors cursor-pointer text-left relative ${
+                      <button
+                        key={mb.id}
+                        onClick={() => handleFilterInspector(mb.id, messageSearch, unreadOnly)}
+                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left text-xs transition-all cursor-pointer ${
                           isSelected
-                            ? "bg-purple-50/70 dark:bg-purple-950/30 border-l-4 border-purple-600"
-                            : "hover:bg-zinc-50 dark:hover:bg-zinc-800/40"
+                            ? "bg-purple-600 text-white font-semibold shadow-xs"
+                            : "text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                         }`}
                       >
-                        <div className="flex items-center justify-between gap-1 mb-1">
-                          <span className="font-bold text-xs text-zinc-900 dark:text-zinc-100 truncate max-w-[180px]">
-                            {msg.from_name || msg.from_addr}
-                          </span>
-                          <span className="text-[10px] text-zinc-400 shrink-0">
-                            {formatDate(msg.created_at)}
-                          </span>
-                        </div>
-
-                        <div className="text-xs font-medium text-zinc-700 dark:text-zinc-300 truncate mb-1">
-                          {msg.subject || "(No subject)"}
-                        </div>
-
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-[10px] text-zinc-400 font-mono truncate max-w-[160px]">
-                            To: {msg.to_addr}
-                          </span>
-
-                          {msg.otp_code && (
-                            <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-                              OTP: {msg.otp_code}
-                            </span>
-                          )}
-
-                          {msg.has_attachments === 1 && (
-                            <Paperclip className="h-3 w-3 text-zinc-400" />
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-
-              {/* Right Column: Email Content View */}
-              <div className="flex-1 flex flex-col overflow-y-auto bg-white dark:bg-zinc-900">
-                {selectedMessage ? (
-                  <div className="flex-1 flex flex-col p-5 overflow-y-auto">
-                    {/* Header info */}
-                    <div className="pb-4 border-b border-zinc-200 dark:border-zinc-800 space-y-3">
-                      <div className="flex items-start justify-between gap-4">
-                        <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
-                          {selectedMessage.subject || "(No subject)"}
-                        </h3>
-                        <button
-                          onClick={() => handleDeleteMessage(selectedMessage.id)}
-                          className="p-1.5 text-zinc-400 hover:text-red-600 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors shrink-0 cursor-pointer"
-                          title="Delete message"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-zinc-600 dark:text-zinc-300 bg-zinc-50 dark:bg-zinc-800/50 p-3 rounded-xl border border-zinc-200/60 dark:border-zinc-800">
-                        <div>
-                          <span className="text-zinc-400">From: </span>
-                          <strong className="font-semibold text-zinc-900 dark:text-zinc-100">
-                            {selectedMessage.from_name ? `${selectedMessage.from_name} <${selectedMessage.from_addr}>` : selectedMessage.from_addr}
-                          </strong>
-                        </div>
-                        <div>
-                          <span className="text-zinc-400">To: </span>
-                          <strong className="font-semibold text-zinc-900 dark:text-zinc-100 font-mono">
-                            {selectedMessage.to_addr}
-                          </strong>
-                        </div>
-                        <div>
-                          <span className="text-zinc-400">Date: </span>
-                          <span>{formatDate(selectedMessage.created_at)}</span>
-                        </div>
-                        {selectedMessage.otp_code && (
-                          <div className="flex items-center gap-2">
-                            <span className="text-zinc-400">OTP Code: </span>
-                            <span className="font-mono font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-900">
-                              {selectedMessage.otp_code}
-                            </span>
-                            <button
-                              onClick={() => handleCopy(selectedMessage.otp_code!)}
-                              className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer"
-                              title="Copy OTP"
-                            >
-                              <Copy className="h-3 w-3" />
-                            </button>
+                        <div className="min-w-0 pr-2">
+                          <div className="flex items-center gap-1.5 truncate">
+                            <span className="truncate">{mb.address}</span>
+                            {mb.is_primary === 1 && (
+                              <Star className={`h-3 w-3 shrink-0 ${isSelected ? "text-amber-200 fill-amber-200" : "text-amber-500 fill-amber-500"}`} />
+                            )}
                           </div>
-                        )}
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {mb.unread_count > 0 && (
+                            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                              isSelected ? "bg-white text-purple-700" : "bg-blue-500 text-white"
+                            }`}>
+                              {mb.unread_count}
+                            </span>
+                          )}
+                          <span className={`text-[11px] ${isSelected ? "text-purple-100" : "text-zinc-400"}`}>
+                            {mb.message_count || 0}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Bottom Quota status */}
+                <div className="p-3 border-t border-zinc-200 dark:border-zinc-800 text-[11px] text-zinc-500 dark:text-zinc-400 bg-zinc-50 dark:bg-zinc-900/40">
+                  <div className="flex items-center justify-between mb-1">
+                    <span>Mailbox Quota:</span>
+                    <span className="font-semibold text-zinc-900 dark:text-zinc-200">
+                      {inspectingUser.role === "admin" ? "Unlimited (Admin)" : `${userMailboxes.length} / ${inspectingUser.max_mailboxes || 1}`}
+                    </span>
+                  </div>
+                </div>
+              </aside>
+
+              {/* PANEL 2: Messages List */}
+              <section
+                className={`w-full md:w-80 lg:w-[400px] border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex flex-col shrink-0 ${
+                  mobilePane === "detail" ? "hidden md:flex" : "flex"
+                }`}
+              >
+                {/* Search & Filter Header */}
+                <div className="p-3.5 border-b border-zinc-200 dark:border-zinc-800 space-y-2.5">
+                  {/* Search input */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-400" />
+                    <input
+                      type="text"
+                      placeholder="Search subject, sender, OTP..."
+                      value={messageSearch}
+                      onChange={(e) => handleFilterInspector(selectedMailboxId, e.target.value, unreadOnly)}
+                      className="w-full pl-9 pr-8 py-1.5 text-xs rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/60 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 focus:outline-hidden focus:ring-2 focus:ring-purple-500"
+                    />
+                    {messageSearch && (
+                      <button
+                        onClick={() => handleFilterInspector(selectedMailboxId, "", unreadOnly)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 cursor-pointer"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Quick Filter Chips */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
+                    <button
+                      onClick={() => setQuickFilter("all")}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                        quickFilter === "all"
+                          ? "bg-purple-600 text-white"
+                          : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200"
+                      }`}
+                    >
+                      All ({userMessages.length})
+                    </button>
+                    <button
+                      onClick={() => setQuickFilter("unread")}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                        quickFilter === "unread"
+                          ? "bg-purple-600 text-white"
+                          : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200"
+                      }`}
+                    >
+                      Unread ({totalUnreadCount})
+                    </button>
+                    <button
+                      onClick={() => setQuickFilter("otp")}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer flex items-center gap-1 ${
+                        quickFilter === "otp"
+                          ? "bg-purple-600 text-white"
+                          : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200"
+                      }`}
+                    >
+                      <KeyRound className="h-3 w-3" />
+                      <span>OTP ({totalOtpCount})</span>
+                    </button>
+                    <button
+                      onClick={() => setQuickFilter("attachments")}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer flex items-center gap-1 ${
+                        quickFilter === "attachments"
+                          ? "bg-purple-600 text-white"
+                          : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200"
+                      }`}
+                    >
+                      <Paperclip className="h-3 w-3" />
+                      <span>Files ({totalAttachmentsCount})</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Messages List Area */}
+                <div className="flex-1 overflow-y-auto divide-y divide-zinc-200 dark:divide-zinc-800/80">
+                  {loadingMessages ? (
+                    <div className="p-12 text-center text-zinc-400">
+                      <RefreshCw className="h-6 w-6 mx-auto animate-spin mb-2" />
+                      <p className="text-xs font-medium">Loading messages...</p>
+                    </div>
+                  ) : filteredMessages.length === 0 ? (
+                    <div className="p-12 text-center text-zinc-400">
+                      <Mail className="h-10 w-10 mx-auto text-zinc-300 dark:text-zinc-700 mb-2" />
+                      <p className="text-xs font-medium text-zinc-600 dark:text-zinc-300">No messages found</p>
+                      <p className="text-[11px] text-zinc-400 mt-1">
+                        {messageSearch ? "Try clearing search filter" : "This user has no emails matching this filter"}
+                      </p>
+                    </div>
+                  ) : (
+                    filteredMessages.map((msg) => {
+                      const isSelected = selectedMessage?.id === msg.id;
+                      const msgOtp = getOtp(msg);
+                      const isUnread = msg.is_read === 0;
+
+                      return (
+                        <div
+                          key={msg.id}
+                          onClick={() => handleSelectMessage(msg)}
+                          className={`p-3.5 transition-all cursor-pointer text-left relative ${
+                            isSelected
+                              ? "bg-purple-50/80 dark:bg-purple-950/40 border-l-4 border-purple-600"
+                              : "hover:bg-zinc-50 dark:hover:bg-zinc-900/60"
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <SenderAvatar name={msg.from_name} addr={msg.from_addr} />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center justify-between gap-1 mb-0.5">
+                                <span className={`text-xs truncate ${isUnread ? "font-bold text-zinc-900 dark:text-white" : "font-medium text-zinc-700 dark:text-zinc-300"}`}>
+                                  {msg.from_name || msg.from_addr}
+                                </span>
+                                <span className="text-[10px] text-zinc-400 shrink-0 font-mono">
+                                  {formatDate(msg.created_at)}
+                                </span>
+                              </div>
+
+                              <div className={`text-xs truncate mb-1 ${isUnread ? "font-bold text-zinc-900 dark:text-zinc-100" : "font-normal text-zinc-600 dark:text-zinc-400"}`}>
+                                {msg.subject || "(No subject)"}
+                              </div>
+
+                              <div className="text-[11px] text-zinc-400 truncate mb-2">
+                                {msg.body_text ? msg.body_text.slice(0, 80).replace(/\s+/g, " ") : "(No plain text content)"}
+                              </div>
+
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {isUnread && (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-bold bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" />
+                                    New
+                                  </span>
+                                )}
+
+                                {msgOtp && (
+                                  <span
+                                    onClick={(e) => handleCopyOtpCode(e, msgOtp)}
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-amber-50 border border-amber-200 text-amber-800 dark:bg-amber-950/70 dark:border-amber-800 dark:text-amber-300 hover:bg-amber-100 cursor-pointer"
+                                    title="Click to copy OTP"
+                                  >
+                                    <KeyRound className="h-2.5 w-2.5" />
+                                    <span>OTP: {msgOtp}</span>
+                                    {copiedOtp === msgOtp ? <Check className="h-2.5 w-2.5 text-emerald-500" /> : <Copy className="h-2.5 w-2.5 opacity-60" />}
+                                  </span>
+                                )}
+
+                                {msg.has_attachments === 1 && (
+                                  <span className="inline-flex items-center gap-0.5 text-[10px] text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">
+                                    <Paperclip className="h-2.5 w-2.5" />
+                                    <span>File</span>
+                                  </span>
+                                )}
+
+                                <span className="text-[10px] text-zinc-400 font-mono ml-auto truncate max-w-[120px]">
+                                  To: {msg.to_addr}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </section>
+
+              {/* PANEL 3: Message Reading Pane */}
+              <main
+                className={`flex-1 flex flex-col bg-white dark:bg-zinc-900 overflow-hidden ${
+                  mobilePane === "list" ? "hidden md:flex" : "flex"
+                }`}
+              >
+                {selectedMessage ? (
+                  <div className="flex-1 flex flex-col overflow-y-auto">
+                    {/* Header Action Bar */}
+                    <div className="p-4 sm:p-5 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 sticky top-0 z-10 shadow-2xs">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0 flex-1">
+                          {/* Mobile Back Button */}
+                          <button
+                            onClick={() => setMobilePane("list")}
+                            className="md:hidden flex items-center gap-1.5 text-xs text-purple-600 dark:text-purple-400 font-semibold mb-2 cursor-pointer"
+                          >
+                            <ArrowLeft className="h-3.5 w-3.5" />
+                            <span>Back to message list</span>
+                          </button>
+
+                          <h2 className="text-lg sm:text-xl font-bold text-zinc-900 dark:text-zinc-100 tracking-tight break-words select-text">
+                            {selectedMessage.subject || "(No subject)"}
+                          </h2>
+                        </div>
+
+                        {/* Actions Toolbar */}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            onClick={() => handleToggleRead(selectedMessage.id, selectedMessage.is_read)}
+                            className="p-2 rounded-xl border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-300 transition-all cursor-pointer"
+                            title={selectedMessage.is_read === 1 ? "Mark as unread" : "Mark as read"}
+                          >
+                            {selectedMessage.is_read === 1 ? <Mail className="h-4 w-4" /> : <MailOpen className="h-4 w-4 text-purple-500" />}
+                          </button>
+
+                          <button
+                            onClick={() => handleCopy(selectedMessage.subject || "")}
+                            className="p-2 rounded-xl border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-300 transition-all cursor-pointer"
+                            title="Copy Subject"
+                          >
+                            <Copy className="h-4 w-4" />
+                          </button>
+
+                          <button
+                            onClick={() => handleDeleteMessage(selectedMessage.id)}
+                            className="p-2 rounded-xl border border-zinc-200 dark:border-zinc-700 hover:border-red-300 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400 text-zinc-400 transition-all cursor-pointer"
+                            title="Delete message"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
                       </div>
 
-                      {/* Content view tabs */}
-                      <div className="flex items-center gap-2 border-b border-zinc-200 dark:border-zinc-800 pb-2">
+                      {/* Sender & Recipient Information */}
+                      <div className="mt-4 p-3.5 rounded-xl border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-850/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <SenderAvatar name={selectedMessage.from_name} addr={selectedMessage.from_addr} />
+                          <div className="min-w-0">
+                            <div className="font-semibold text-zinc-900 dark:text-zinc-100 truncate">
+                              {selectedMessage.from_name ? `${selectedMessage.from_name} <${selectedMessage.from_addr}>` : selectedMessage.from_addr}
+                            </div>
+                            <div className="text-zinc-500 dark:text-zinc-400 font-mono text-[11px] truncate">
+                              To: <span className="font-semibold text-zinc-700 dark:text-zinc-300">{selectedMessage.to_addr}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="text-left sm:text-right shrink-0 text-zinc-500 dark:text-zinc-400 text-[11px]">
+                          <div>{formatFullDate(selectedMessage.created_at)}</div>
+                          <div className="text-zinc-400 font-mono mt-0.5">({formatDate(selectedMessage.created_at)})</div>
+                        </div>
+                      </div>
+
+                      {/* Prominent OTP Highlight Banner */}
+                      {selectedOtp && (
+                        <div className="mt-3 p-3.5 rounded-xl border border-emerald-300 dark:border-emerald-800/80 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 dark:from-emerald-950/30 dark:via-teal-950/20 dark:to-emerald-950/30 flex items-center justify-between gap-3 shadow-xs">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-emerald-500 text-white shadow-2xs">
+                              <KeyRound className="h-5 w-5" />
+                            </div>
+                            <div>
+                              <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
+                                Verification Code (OTP Detected)
+                              </div>
+                              <div className="text-2xl font-bold tracking-widest font-mono text-emerald-950 dark:text-emerald-100 select-all">
+                                {selectedOtp}
+                              </div>
+                            </div>
+                          </div>
+
+                          <button
+                            onClick={(e) => handleCopyOtpCode(e, selectedOtp)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-xs active:scale-95 transition-all cursor-pointer"
+                          >
+                            {copiedOtp === selectedOtp ? (
+                              <>
+                                <Check className="h-4 w-4" />
+                                <span>Copied!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="h-4 w-4" />
+                                <span>Copy Code</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Attachments Section */}
+                      {selectedMessage.attachments && selectedMessage.attachments.length > 0 && (
+                        <div className="mt-3 p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-850/40">
+                          <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-2">
+                            <Paperclip className="h-3.5 w-3.5 text-purple-500" />
+                            <span>Attachments ({selectedMessage.attachments.length})</span>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {selectedMessage.attachments.map((att) => (
+                              <a
+                                key={att.id}
+                                href={`/api/v1/attachments/${att.id}`}
+                                download={att.filename}
+                                className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:bg-purple-50 dark:hover:bg-purple-950/40 hover:border-purple-300 text-xs text-zinc-700 dark:text-zinc-200 font-medium transition-all shadow-2xs"
+                              >
+                                <Download className="h-3.5 w-3.5 text-zinc-400 group-hover:text-purple-500" />
+                                <span className="font-mono truncate max-w-[200px]">{att.filename}</span>
+                                <span className="text-[10px] text-zinc-400">({formatSize(att.size)})</span>
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* View Switcher Tabs */}
+                      <div className="flex items-center gap-2 mt-4 border-b border-zinc-200 dark:border-zinc-800 pb-2">
                         <button
                           onClick={() => setActiveMessageViewTab("html")}
-                          className={`px-3 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
+                          className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
                             activeMessageViewTab === "html"
-                              ? "bg-purple-600 text-white"
+                              ? "bg-purple-600 text-white shadow-2xs"
                               : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                           }`}
                         >
-                          HTML Preview
+                          Rendered HTML
                         </button>
                         <button
                           onClick={() => setActiveMessageViewTab("text")}
-                          className={`px-3 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
+                          className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
                             activeMessageViewTab === "text"
-                              ? "bg-purple-600 text-white"
+                              ? "bg-purple-600 text-white shadow-2xs"
                               : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                           }`}
                         >
@@ -1400,62 +1822,81 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                         </button>
                         <button
                           onClick={() => setActiveMessageViewTab("headers")}
-                          className={`px-3 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
+                          className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
                             activeMessageViewTab === "headers"
-                              ? "bg-purple-600 text-white"
+                              ? "bg-purple-600 text-white shadow-2xs"
                               : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                           }`}
                         >
-                          Headers
+                          Raw Headers
                         </button>
                       </div>
                     </div>
 
-                    {/* Email Content Body */}
-                    <div className="flex-1 mt-4">
+                    {/* Content Display Canvas */}
+                    <div className="flex-1 p-4 sm:p-6 overflow-y-auto">
                       {activeMessageViewTab === "html" && (
                         selectedMessage.body_html ? (
-                          <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white p-4 overflow-x-auto min-h-[300px]">
+                          <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white p-4 overflow-x-auto min-h-[500px] shadow-xs">
                             <iframe
                               title="Email HTML Preview"
-                              sandbox="allow-same-origin"
+                              sandbox="allow-same-origin allow-popups"
                               srcDoc={selectedMessage.body_html}
-                              className="w-full min-h-[400px] border-0"
+                              className="w-full min-h-[600px] border-0"
                             />
                           </div>
                         ) : (
-                          <pre className="whitespace-pre-wrap font-sans text-sm text-zinc-800 dark:text-zinc-200 bg-zinc-50 dark:bg-zinc-800/40 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800">
+                          <div className="p-6 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-850/50 text-sm whitespace-pre-wrap font-sans text-zinc-800 dark:text-zinc-200">
                             {selectedMessage.body_text || "(Empty content)"}
-                          </pre>
+                          </div>
                         )
                       )}
 
                       {activeMessageViewTab === "text" && (
-                        <pre className="whitespace-pre-wrap font-mono text-xs text-zinc-800 dark:text-zinc-200 bg-zinc-50 dark:bg-zinc-800/40 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-x-auto">
+                        <pre className="p-5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-850/50 text-xs font-mono text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap overflow-x-auto">
                           {selectedMessage.body_text || "(No plain text content)"}
                         </pre>
                       )}
 
                       {activeMessageViewTab === "headers" && (
-                        <pre className="whitespace-pre-wrap font-mono text-[11px] text-zinc-700 dark:text-zinc-300 bg-zinc-50 dark:bg-zinc-800/40 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-x-auto">
-                          {selectedMessage.raw_headers || "(No raw headers)"}
-                        </pre>
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-end">
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(selectedMessage.raw_headers || "");
+                                toast("Raw headers copied to clipboard", "success");
+                              }}
+                              className="flex items-center gap-1.5 px-3 py-1 rounded-lg border border-zinc-200 dark:border-zinc-700 text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer"
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                              <span>Copy Headers</span>
+                            </button>
+                          </div>
+                          <pre className="p-5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-850/50 text-[11px] font-mono text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap overflow-x-auto">
+                            {selectedMessage.raw_headers || "(No raw headers available)"}
+                          </pre>
+                        </div>
                       )}
                     </div>
                   </div>
                 ) : (
-                  <div className="flex-1 flex flex-col items-center justify-center p-8 text-zinc-400">
-                    <Mail className="h-12 w-12 text-zinc-300 dark:text-zinc-700 mb-3" />
-                    <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
-                      Select a message from the list to view its contents
+                  <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-zinc-400">
+                    <div className="h-16 w-16 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-300 dark:text-zinc-600 mb-4 shadow-inner">
+                      <Mail className="h-8 w-8" />
+                    </div>
+                    <h3 className="text-sm font-bold text-zinc-700 dark:text-zinc-300">
+                      No message selected
+                    </h3>
+                    <p className="text-xs text-zinc-400 mt-1 max-w-sm">
+                      Select an email from the list on the left to read its content, view OTP codes, and inspect attachments.
                     </p>
                   </div>
                 )}
-              </div>
+              </main>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
