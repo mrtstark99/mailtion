@@ -291,7 +291,7 @@ export default function RegisterPage() {
                   />
                 </div>
                 <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
-                  Dùng để nhận mã OTP và khôi phục. Mỗi email chỉ được đăng ký 1 tài khoản Mailtion duy nhất.
+                  Used for OTP verification and password recovery. Each recovery email can only register one Mailtion account.
                 </p>
               </div>
 

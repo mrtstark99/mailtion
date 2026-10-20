@@ -65,16 +65,7 @@ export function Navbar({
         </div>
 
         <div className="flex items-center gap-1.5 sm:gap-2.5">
-          {onViewLanding && (
-            <button
-              onClick={onViewLanding}
-              title="View Home Landing Page"
-              className="flex h-8 sm:h-9 items-center gap-1.5 rounded-lg border border-zinc-200 px-2.5 sm:px-3 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900 dark:hover:text-zinc-100 transition-all active:scale-[0.96] cursor-pointer"
-            >
-              <Globe className="h-3.5 w-3.5 text-zinc-500 dark:text-zinc-400" />
-              <span className="hidden sm:inline">Home</span>
-            </button>
-          )}
+
 
           {isAdmin && onOpenDashboard && (
             <button

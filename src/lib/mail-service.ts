@@ -12,6 +12,8 @@ export interface Mailbox {
   domain: string;
   tag: string | null;
   note: string | null;
+  forward_to?: string | null;
+  is_forward_enabled?: number;
   status: "active" | "paused" | "expired";
   is_primary?: number;
   expires_at: string | null;
@@ -157,6 +159,8 @@ export function createMailbox(data: {
   domain?: string;
   tag?: string;
   note?: string;
+  forwardTo?: string | null;
+  isForwardEnabled?: boolean;
   expiryHours?: number;
   userId?: string | null;
   isPrimary?: boolean;
@@ -165,6 +169,9 @@ export function createMailbox(data: {
   const cleanLocal = data.localPart.toLowerCase().replace(/[^a-z0-9._-]/g, "");
   const address = `${cleanLocal}@${domain}`.toLowerCase();
 
+  const forwardToClean = data.forwardTo ? data.forwardTo.trim().toLowerCase() : null;
+  const isForwardActive = data.isForwardEnabled === false ? 0 : 1;
+
   const existing = getMailboxByAddress(address);
   if (existing) {
     if (data.name && existing.name !== data.name) {
@@ -172,6 +179,12 @@ export function createMailbox(data: {
     }
     if (data.userId && !existing.user_id) {
       db.prepare("UPDATE mailboxes SET user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(data.userId, existing.id);
+    }
+    if (data.forwardTo !== undefined) {
+      db.prepare("UPDATE mailboxes SET forward_to = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(forwardToClean, existing.id);
+    }
+    if (data.isForwardEnabled !== undefined) {
+      db.prepare("UPDATE mailboxes SET is_forward_enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(isForwardActive, existing.id);
     }
     return getMailboxByAddress(address)!;
   }
@@ -184,8 +197,8 @@ export function createMailbox(data: {
   }
 
   db.prepare(`
-    INSERT INTO mailboxes (id, user_id, name, address, local_part, domain, tag, note, status, is_primary, expires_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
+    INSERT INTO mailboxes (id, user_id, name, address, local_part, domain, tag, note, forward_to, is_forward_enabled, status, is_primary, expires_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
   `).run(
     id,
     data.userId || null,
@@ -195,6 +208,8 @@ export function createMailbox(data: {
     domain,
     data.tag || null,
     data.note || null,
+    forwardToClean,
+    isForwardActive,
     data.isPrimary ? 1 : 0,
     expiresAt
   );
@@ -211,7 +226,10 @@ export function createBulkMailboxes(options: {
   domain?: string;
   tag?: string;
   note?: string;
+  forwardTo?: string | null;
+  isForwardEnabled?: boolean;
   expiryHours?: number;
+  userId?: string | null;
 }): Mailbox[] {
   const domain = options.domain || getSettings()["domain"] || "mailtion.com";
   const generatedNames: string[] = [];
@@ -244,8 +262,8 @@ export function createBulkMailboxes(options: {
 
   // Insert transaction
   const insertStmt = db.prepare(`
-    INSERT INTO mailboxes (id, address, local_part, domain, tag, note, status, expires_at)
-    VALUES (?, ?, ?, ?, ?, ?, 'active', ?)
+    INSERT INTO mailboxes (id, user_id, address, local_part, domain, tag, note, forward_to, is_forward_enabled, status, expires_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)
     ON CONFLICT(address) DO NOTHING
   `);
 
@@ -255,13 +273,16 @@ export function createBulkMailboxes(options: {
     expiresAt = d.toISOString();
   }
 
+  const forwardToClean = options.forwardTo ? options.forwardTo.trim().toLowerCase() : null;
+  const isForwardActive = options.isForwardEnabled === false ? 0 : 1;
+
   const transaction = db.transaction((names: string[]) => {
     for (const name of names) {
       const cleanLocal = name.toLowerCase().replace(/[^a-z0-9._-]/g, "");
       if (!cleanLocal) continue;
       const address = `${cleanLocal}@${domain}`.toLowerCase();
       const id = crypto.randomUUID();
-      insertStmt.run(id, address, cleanLocal, domain, options.tag || null, options.note || null, expiresAt);
+      insertStmt.run(id, options.userId || null, address, cleanLocal, domain, options.tag || null, options.note || null, forwardToClean, isForwardActive, expiresAt);
     }
   });
 
@@ -556,8 +577,18 @@ export async function processInboundEmail(payload: {
         WHERE id = ?
       `).get(ownerUserId) as { email?: string; recovery_email?: string | null; auto_forward: number } | undefined;
 
-      const targetEmail = (owner?.recovery_email || owner?.email)?.trim();
-      if (targetEmail && owner?.auto_forward === 1 && targetEmail.toLowerCase() !== toAddr) {
+      // Determine forwarding settings for this specific mailbox:
+      // Primary mailbox: forwards to its forward_to, or falls back to owner's recovery_email (if owner auto_forward is enabled).
+      // Child mailboxes: ONLY forward if their own forward_to backup email is set.
+      // Account recovery email strictly receives emails for the primary address only.
+      const isPrimary = mailbox.is_primary === 1;
+      const isMailboxForwardEnabled = mailbox.is_forward_enabled !== undefined ? mailbox.is_forward_enabled === 1 : true;
+      
+      const targetEmail = isPrimary
+        ? (mailbox.forward_to || (owner?.auto_forward === 1 ? (owner?.recovery_email || owner?.email) : null))?.trim()
+        : (mailbox.forward_to?.trim() || null);
+
+      if (isMailboxForwardEnabled && targetEmail && targetEmail.toLowerCase() !== toAddr) {
         sendForwardedEmail({
           to: targetEmail,
           originalTo: toAddr,

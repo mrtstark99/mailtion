@@ -61,6 +61,26 @@ export async function PATCH(
       }
     }
 
+    if (body.forwardTo !== undefined) {
+      if (body.forwardTo && typeof body.forwardTo === "string" && body.forwardTo.trim()) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(body.forwardTo.trim())) {
+          return NextResponse.json({ error: "Invalid backup email address format." }, { status: 400 });
+        }
+      }
+      db.prepare("UPDATE mailboxes SET forward_to = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(
+        body.forwardTo ? body.forwardTo.trim().toLowerCase() : null,
+        id
+      );
+    }
+
+    if (body.isForwardEnabled !== undefined) {
+      db.prepare("UPDATE mailboxes SET is_forward_enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(
+        body.isForwardEnabled ? 1 : 0,
+        id
+      );
+    }
+
     const updated = db.prepare("SELECT * FROM mailboxes WHERE id = ?").get(id);
     return NextResponse.json({ success: true, item: updated });
   } catch (error: unknown) {

@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
 
     if (existingRecovery) {
       return NextResponse.json(
-        { error: "Email khôi phục này đã được sử dụng để đăng ký tài khoản khác. Mỗi email chỉ được đăng ký 1 tài khoản." },
+        { error: "This recovery email is already in use by another account. Each recovery email can only be registered once." },
         { status: 409 }
       );
     }

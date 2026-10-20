@@ -19,6 +19,7 @@ import {
   Tag,
   Dices,
   ShieldCheck,
+  Forward,
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { useToast } from "./toast";
@@ -31,6 +32,8 @@ interface MailboxItem {
   domain: string;
   tag: string | null;
   note: string | null;
+  forward_to?: string | null;
+  is_forward_enabled?: number;
   status: "active" | "paused" | "expired";
   is_primary?: number;
   expires_at: string | null;
@@ -70,6 +73,8 @@ export function TabMailboxes({
   const [newLocal, setNewLocal] = useState<string>("");
   const [newTag, setNewTag] = useState<string>("");
   const [newNote, setNewNote] = useState<string>("");
+  const [newEnableForward, setNewEnableForward] = useState<boolean>(true);
+  const [newForwardTo, setNewForwardTo] = useState<string>("");
   const [isCreating, setIsCreating] = useState<boolean>(false);
 
   // Edit name modal state
@@ -77,6 +82,8 @@ export function TabMailboxes({
   const [editNameValue, setEditNameValue] = useState<string>("");
   const [editTagValue, setEditTagValue] = useState<string>("");
   const [editNoteValue, setEditNoteValue] = useState<string>("");
+  const [editEnableForward, setEditEnableForward] = useState<boolean>(true);
+  const [editForwardTo, setEditForwardTo] = useState<string>("");
   const [isSavingEdit, setIsSavingEdit] = useState<boolean>(false);
 
   const fetchMailboxes = useCallback(async () => {
@@ -223,11 +230,11 @@ export function TabMailboxes({
   const handleCreateSingle = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canCreateMultiple) {
-      toast("Tài khoản của bạn chưa được cấp quyền tạo thêm email.", "error");
+      toast("Your account does not have permission to create additional mailboxes.", "error");
       return;
     }
     if (isAtLimit) {
-      toast(`Tài khoản của bạn đã đạt hạn mức tối đa (${maxLimit} email).`, "error");
+      toast(`Your account has reached the maximum quota of ${maxLimit} mailboxes.`, "error");
       return;
     }
     setIsCreating(true);
@@ -245,6 +252,8 @@ export function TabMailboxes({
           localPart: local,
           tag: newTag.trim() || undefined,
           note: newNote.trim() || undefined,
+          forwardTo: newForwardTo.trim() || undefined,
+          isForwardEnabled: newEnableForward,
         }),
       });
 
@@ -256,6 +265,8 @@ export function TabMailboxes({
         setNewLocal("");
         setNewTag("");
         setNewNote("");
+        setNewForwardTo("");
+        setNewEnableForward(true);
         fetchMailboxes();
       } else {
         toast(data.error || "Failed to create mailbox", "error");
@@ -273,6 +284,8 @@ export function TabMailboxes({
     setEditNameValue(item.name || "");
     setEditTagValue(item.tag || "");
     setEditNoteValue(item.note || "");
+    setEditForwardTo(item.forward_to || "");
+    setEditEnableForward(item.is_forward_enabled !== undefined ? item.is_forward_enabled === 1 : true);
   };
 
   const handleSaveEdit = async (e: React.FormEvent) => {
@@ -288,6 +301,8 @@ export function TabMailboxes({
           name: editNameValue.trim() || null,
           tag: editTagValue.trim() || null,
           note: editNoteValue.trim() || null,
+          forwardTo: editForwardTo.trim() || null,
+          isForwardEnabled: editEnableForward,
         }),
       });
 
@@ -355,12 +370,12 @@ export function TabMailboxes({
               <div className="col-span-2 sm:col-auto w-full sm:w-auto">
                 <button
                   type="button"
-                  onClick={() => toast(`Tài khoản đã đạt hạn mức tối đa (${maxLimit} email).`, "error")}
+                  onClick={() => toast(`Account has reached the maximum quota of ${maxLimit} mailboxes.`, "error")}
                   className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-indigo-200/80 bg-indigo-50/70 px-3.5 py-2 text-xs sm:text-sm font-semibold text-indigo-700 hover:bg-indigo-100/70 dark:border-indigo-900/60 dark:bg-indigo-950/40 dark:text-indigo-300 shadow-xs transition-all cursor-pointer"
-                  title={`Đã đạt hạn mức tối đa ${maxLimit} email`}
+                  title={`Quota reached: ${maxLimit} mailboxes`}
                 >
                   <ShieldCheck className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-                  <span>Hạn mức: {total}/{maxLimit} Email (Đã đầy)</span>
+                  <span>Quota: {total}/{maxLimit} Mailboxes (Full)</span>
                 </button>
               </div>
             ) : (
@@ -370,7 +385,7 @@ export function TabMailboxes({
                 className="col-span-2 sm:col-auto w-full sm:w-auto flex items-center justify-center gap-1.5 rounded-lg bg-zinc-900 px-3.5 py-2 text-xs sm:text-sm font-semibold text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200 transition-all shadow-xs active:scale-[0.98] cursor-pointer"
               >
                 <Plus className="h-4 w-4" />
-                <span>{isAdmin ? "Create Mailbox" : `+ Thêm email (${total}/${maxLimit})`}</span>
+                <span>{isAdmin ? "Create Mailbox" : `+ Add Mailbox (${total}/${maxLimit})`}</span>
               </button>
             )
           )}
@@ -525,6 +540,26 @@ export function TabMailboxes({
                               )}
                             </button>
                           </div>
+
+                          {/* Forward destination badge */}
+                          <div className="flex items-center gap-1.5 mt-1">
+                            {item.is_forward_enabled === 0 ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] text-zinc-400 font-medium" title="Forwarding is disabled for this email">
+                                <Forward className="h-2.5 w-2.5 opacity-50" />
+                                <span>Forwarding Off</span>
+                              </span>
+                            ) : item.forward_to ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] text-blue-600 dark:text-blue-400 font-medium truncate max-w-[220px]" title={`Forwarding to ${item.forward_to}`}>
+                                <Forward className="h-2.5 w-2.5 shrink-0" />
+                                <span className="truncate">&rarr; {item.forward_to}</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-medium" title="Forwarding to your root recovery email">
+                                <Forward className="h-2.5 w-2.5 shrink-0" />
+                                <span>&rarr; Root Email</span>
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </td>
 
@@ -644,7 +679,7 @@ export function TabMailboxes({
 
             {isAtLimit && (
               <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300">
-                ⚠️ Tài khoản của bạn chỉ được phép sở hữu tối đa 1 địa chỉ email. Bạn đã có 1 email chính nên không thể tạo thêm.
+                ⚠️ Your account is limited to 1 primary email address. Contact an administrator to expand your mailbox quota.
               </div>
             )}
 
@@ -715,6 +750,42 @@ export function TabMailboxes({
                   placeholder="Notes on usage purpose..."
                   className="w-full rounded-xl border border-zinc-200 bg-zinc-50/70 px-3.5 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:bg-white outline-none dark:border-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-100"
                 />
+              </div>
+
+              {/* Forwarding Settings */}
+              <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/40 p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Forward className="h-4 w-4 text-blue-500" />
+                    <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">
+                      Backup / Forwarding Email
+                    </span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newEnableForward}
+                      onChange={(e) => setNewEnableForward(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-zinc-900 dark:peer-checked:bg-blue-600 dark:bg-zinc-700"></div>
+                  </label>
+                </div>
+
+                {newEnableForward && (
+                  <div className="space-y-1 animate-in fade-in duration-100">
+                    <input
+                      type="email"
+                      value={newForwardTo}
+                      onChange={(e) => setNewForwardTo(e.target.value)}
+                      placeholder="Backup destination email (e.g. backup@gmail.com)"
+                      className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-900 focus:border-zinc-900 outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 transition-all"
+                    />
+                    <p className="text-[11px] text-zinc-400 leading-tight">
+                      Incoming emails to this child address will be forwarded only to this backup email.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2">
@@ -815,6 +886,42 @@ export function TabMailboxes({
                   placeholder="Additional notes..."
                   className="w-full rounded-xl border border-zinc-200 bg-zinc-50/70 px-3.5 py-2 text-sm text-zinc-900 focus:border-zinc-900 focus:bg-white outline-none dark:border-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-100"
                 />
+              </div>
+
+              {/* Forwarding Settings */}
+              <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/40 p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Forward className="h-4 w-4 text-blue-500" />
+                    <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">
+                      Backup / Forwarding Email
+                    </span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editEnableForward}
+                      onChange={(e) => setEditEnableForward(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-zinc-900 dark:peer-checked:bg-blue-600 dark:bg-zinc-700"></div>
+                  </label>
+                </div>
+
+                {editEnableForward && (
+                  <div className="space-y-1 animate-in fade-in duration-100">
+                    <input
+                      type="email"
+                      value={editForwardTo}
+                      onChange={(e) => setEditForwardTo(e.target.value)}
+                      placeholder="Backup destination email (e.g. backup@gmail.com)"
+                      className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-900 focus:border-zinc-900 outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 transition-all"
+                    />
+                    <p className="text-[11px] text-zinc-400 leading-tight">
+                      Child mailboxes forward only to their designated backup address. Account recovery email is reserved for your primary address.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2">

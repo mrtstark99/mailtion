@@ -44,23 +44,18 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
 
-    // Regular users can only create single mailbox and are subject to max_mailboxes quota (default: 1)
+    // Multi accounts can create up to 100 mailboxes; standard accounts are limited to 1 primary email
     if (user.role !== "admin") {
-      if (body.bulk || body.mode || (body.count && parseInt(body.count, 10) > 1)) {
-        return NextResponse.json(
-          { error: "Tài khoản tiêu chuẩn chỉ được phép tạo 1 hộp thư." },
-          { status: 403 }
-        );
-      }
-
       const userRow = db.prepare(
-        "SELECT COALESCE(max_mailboxes, 1) as max_mailboxes FROM users WHERE id = ?"
-      ).get(user.id) as { max_mailboxes: number } | undefined;
-      const maxAllowed = userRow?.max_mailboxes ?? 1;
+        "SELECT role, COALESCE(max_mailboxes, 1) as max_mailboxes FROM users WHERE id = ?"
+      ).get(user.id) as { role: string; max_mailboxes: number } | undefined;
 
-      if (maxAllowed <= 1) {
+      const isMulti = userRow?.role === "multi" || (userRow?.max_mailboxes !== undefined && userRow.max_mailboxes > 1);
+      const maxAllowed = userRow?.role === "multi" ? Math.max(100, userRow.max_mailboxes) : (userRow?.max_mailboxes ?? 1);
+
+      if (!isMulti || maxAllowed <= 1) {
         return NextResponse.json(
-          { error: "Tài khoản của bạn chưa được cấp quyền tạo thêm địa chỉ email. Mỗi tài khoản mặc định chỉ sử dụng 1 địa chỉ email nhận thư." },
+          { error: "Standard accounts are limited to 1 primary email address. Contact an administrator to upgrade to a Multi account (up to 100 mailboxes)." },
           { status: 403 }
         );
       }
@@ -70,11 +65,19 @@ export async function POST(req: NextRequest) {
       ).get(user.id) as { count: number } | undefined;
       const currentCount = currentCountRow?.count || 0;
 
-      if (currentCount >= maxAllowed) {
+      const requestedCount = (body.bulk || body.mode) ? (body.count ? parseInt(body.count, 10) : 10) : 1;
+      if (currentCount + requestedCount > maxAllowed) {
         return NextResponse.json(
-          { error: `Tài khoản của bạn đã đạt hạn mức tối đa (${maxAllowed} email). Không thể tạo thêm hộp thư mới.` },
+          { error: `Mailbox quota reached. You currently have ${currentCount}/${maxAllowed} mailboxes and cannot create ${requestedCount} more.` },
           { status: 403 }
         );
+      }
+    }
+
+    if (body.forwardTo && typeof body.forwardTo === "string" && body.forwardTo.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(body.forwardTo.trim())) {
+        return NextResponse.json({ error: "Invalid backup email address format." }, { status: 400 });
       }
     }
 
@@ -89,6 +92,9 @@ export async function POST(req: NextRequest) {
         domain: body.domain,
         tag: body.tag,
         note: body.note,
+        forwardTo: body.forwardTo,
+        isForwardEnabled: body.isForwardEnabled !== undefined ? Boolean(body.isForwardEnabled) : undefined,
+        userId: user.id,
         expiryHours: body.expiryHours ? parseInt(body.expiryHours, 10) : undefined,
       });
       return NextResponse.json({ success: true, count: created.length, items: created });
@@ -105,6 +111,8 @@ export async function POST(req: NextRequest) {
       domain: body.domain,
       tag: body.tag,
       note: body.note,
+      forwardTo: body.forwardTo,
+      isForwardEnabled: body.isForwardEnabled !== undefined ? Boolean(body.isForwardEnabled) : undefined,
       expiryHours: body.expiryHours ? parseInt(body.expiryHours, 10) : undefined,
       userId: user.id,
     });

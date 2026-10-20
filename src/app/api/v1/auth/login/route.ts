@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
 
     if (user.status === "suspended") {
       return NextResponse.json(
-        { error: "Tài khoản của bạn đã bị tạm dừng. Vui lòng liên hệ quản trị viên để được hỗ trợ." },
+        { error: "Your account has been suspended. Please contact an administrator for assistance." },
         { status: 403 }
       );
     }

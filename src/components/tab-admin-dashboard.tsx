@@ -54,7 +54,7 @@ interface UserItem {
   username: string;
   email: string | null;
   recovery_email: string | null;
-  role: "admin" | "user";
+  role: "admin" | "user" | "multi";
   status: "active" | "suspended";
   created_at: string;
   updated_at: string;
@@ -164,7 +164,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
     username: "",
     password: "",
     recoveryEmail: "",
-    role: "user" as "user" | "admin",
+    role: "user" as "user" | "admin" | "multi",
     status: "active" as "active" | "suspended",
     maxMailboxes: 1,
   });
@@ -175,7 +175,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
   const [editForm, setEditForm] = useState({
     username: "",
     recoveryEmail: "",
-    role: "user" as "user" | "admin",
+    role: "user" as "user" | "admin" | "multi",
     status: "active" as "active" | "suspended",
     password: "",
     maxMailboxes: 1,
@@ -684,7 +684,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
 
             <div className="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl text-xs font-medium">
               <span className="text-zinc-400 px-2">Role:</span>
-              {(["all", "user", "admin"] as const).map((r) => (
+              {(["all", "user", "multi", "admin"] as const).map((r) => (
                 <button
                   key={r}
                   onClick={() => {
@@ -697,7 +697,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                       : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200"
                   }`}
                 >
-                  {r === "all" ? "All" : r === "user" ? "User" : "Admin"}
+                  {r === "all" ? "All" : r === "user" ? "Standard" : r === "multi" ? "Multi" : "Admin"}
                 </button>
               ))}
             </div>
@@ -798,9 +798,13 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-700 dark:bg-purple-950/70 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60">
                             <ShieldCheck className="h-3 w-3" /> Admin
                           </span>
+                        ) : u.role === "multi" || (u.max_mailboxes && u.max_mailboxes > 1) ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60">
+                            <Sparkles className="h-3 w-3" /> Multi
+                          </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                            User
+                            Standard
                           </span>
                         )}
                       </td>
@@ -1032,13 +1036,19 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                   </label>
                   <select
                     value={addForm.role}
-                    onChange={(e) =>
-                      setAddForm({ ...addForm, role: e.target.value as "user" | "admin" })
-                    }
+                    onChange={(e) => {
+                      const newRole = e.target.value as "user" | "multi" | "admin";
+                      setAddForm({
+                        ...addForm,
+                        role: newRole,
+                        maxMailboxes: newRole === "multi" ? 100 : (newRole === "admin" ? 999999 : 1),
+                      });
+                    }}
                     className="w-full px-3 py-2 text-sm rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-zinc-900 dark:text-zinc-100 focus:outline-hidden focus:ring-2 focus:ring-purple-500 cursor-pointer"
                   >
-                    <option value="user">Standard User</option>
-                    <option value="admin">Administrator</option>
+                    <option value="user">Standard User (1 Mailbox)</option>
+                    <option value="multi">Multi User (100 Mailboxes)</option>
+                    <option value="admin">Administrator (Unlimited)</option>
                   </select>
                 </div>
 
@@ -1166,13 +1176,19 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                   <select
                     value={editForm.role}
                     disabled={editingUser.id === currentUserId}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, role: e.target.value as "user" | "admin" })
-                    }
+                    onChange={(e) => {
+                      const newRole = e.target.value as "user" | "multi" | "admin";
+                      setEditForm({
+                        ...editForm,
+                        role: newRole,
+                        maxMailboxes: newRole === "multi" ? 100 : (newRole === "admin" ? 999999 : 1),
+                      });
+                    }}
                     className="w-full px-3 py-2 text-sm rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-zinc-900 dark:text-zinc-100 disabled:opacity-50 cursor-pointer"
                   >
-                    <option value="user">Standard User</option>
-                    <option value="admin">Administrator</option>
+                    <option value="user">Standard User (1 Mailbox)</option>
+                    <option value="multi">Multi User (100 Mailboxes)</option>
+                    <option value="admin">Administrator (Unlimited)</option>
                   </select>
                 </div>
 

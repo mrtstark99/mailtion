@@ -64,7 +64,7 @@ export async function PUT(req: NextRequest) {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(cleanRecovery)) {
           return NextResponse.json(
-            { error: "Định dạng email khôi phục không hợp lệ" },
+            { error: "Invalid recovery email format" },
             { status: 400 }
           );
         }
@@ -75,7 +75,7 @@ export async function PUT(req: NextRequest) {
 
         if (existing) {
           return NextResponse.json(
-            { error: "Email khôi phục này đã được sử dụng bởi một tài khoản khác. Mỗi email chỉ được đăng ký 1 tài khoản." },
+            { error: "This recovery email is already in use by another account. Each recovery email can only be registered once." },
             { status: 409 }
           );
         }

@@ -64,6 +64,8 @@ function createDb(): DatabaseSync {
   addMailboxColumn("name", "name TEXT");
   addMailboxColumn("user_id", "user_id TEXT");
   addMailboxColumn("is_primary", "is_primary INTEGER DEFAULT 0");
+  addMailboxColumn("forward_to", "forward_to TEXT");
+  addMailboxColumn("is_forward_enabled", "is_forward_enabled INTEGER DEFAULT 1");
   db.exec("CREATE INDEX IF NOT EXISTS idx_mailboxes_user_id ON mailboxes(user_id);");
 
   db.exec(`
@@ -161,16 +163,20 @@ function createDb(): DatabaseSync {
     WHERE recovery_email IS NOT NULL AND recovery_email != '';
   `);
 
-  // Update existing users to enforce max_mailboxes: 1 for regular users, unlimited for admin
+  // Update existing users to enforce mailbox quotas:
+  // - Admin: unlimited (999999)
+  // - Multi accounts: 100 mailboxes
+  // - Standard users: 1 mailbox
   try {
-    db.prepare("UPDATE users SET max_mailboxes = 1 WHERE role != 'admin' AND (max_mailboxes IS NULL OR max_mailboxes != 1)").run();
     db.prepare("UPDATE users SET max_mailboxes = 999999 WHERE role = 'admin'").run();
+    db.prepare("UPDATE users SET max_mailboxes = 100 WHERE role = 'multi' AND (max_mailboxes IS NULL OR max_mailboxes < 100)").run();
+    db.prepare("UPDATE users SET max_mailboxes = 1 WHERE role = 'user' AND max_mailboxes IS NULL").run();
     db.prepare("UPDATE users SET auto_forward = 1 WHERE auto_forward IS NULL").run();
 
-    // Ensure all regular users keep only 1 mailbox (their primary mailbox)
+    // Ensure standard single-mailbox users (role = 'user' with quota 1) keep only their primary mailbox
     db.prepare(`
       DELETE FROM mailboxes 
-      WHERE user_id IN (SELECT id FROM users WHERE role != 'admin')
+      WHERE user_id IN (SELECT id FROM users WHERE role = 'user' AND COALESCE(max_mailboxes, 1) <= 1)
       AND (is_primary IS NULL OR is_primary != 1)
       AND user_id IN (
         SELECT user_id FROM mailboxes WHERE is_primary = 1 GROUP BY user_id

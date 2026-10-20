@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { User, Mail, KeyRound, Check, Loader2, Forward } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { User, Mail, KeyRound, Check, Loader2, Forward, AlertTriangle, X } from "lucide-react";
 import { useToast } from "./toast";
 import { formatFullDate } from "@/lib/utils";
 
@@ -24,6 +24,8 @@ export function TabProfile() {
   // Recovery email state
   const [recoveryEmail, setRecoveryEmail] = useState("");
   const [isSavingRecovery, setIsSavingRecovery] = useState(false);
+  const [showRecoveryInfo, setShowRecoveryInfo] = useState(false);
+  const recoveryInfoRef = useRef<HTMLDivElement>(null);
 
   // Auto forward state
   const [autoForward, setAutoForward] = useState<boolean>(true);
@@ -38,6 +40,22 @@ export function TabProfile() {
   useEffect(() => {
     fetchProfile();
   }, []);
+
+  // Handle clicking outside of the recovery explanation popover
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        recoveryInfoRef.current &&
+        !recoveryInfoRef.current.contains(event.target as Node)
+      ) {
+        setShowRecoveryInfo(false);
+      }
+    }
+    if (showRecoveryInfo) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [showRecoveryInfo]);
 
   const fetchProfile = async () => {
     try {
@@ -69,17 +87,17 @@ export function TabProfile() {
       if (res.ok) {
         toast(
           newValue
-            ? "Đã bật tự động chuyển tiếp về email gốc"
-            : "Đã tắt tự động chuyển tiếp về email gốc",
+            ? "Auto-forwarding to recovery email enabled"
+            : "Auto-forwarding to recovery email disabled",
           "success"
         );
         setProfile((prev) => (prev ? { ...prev, autoForward: newValue } : null));
       } else {
-        toast(data.error || "Không thể cập nhật cấu hình", "error");
+        toast(data.error || "Failed to update configuration", "error");
         setAutoForward(!newValue);
       }
     } catch {
-      toast("Lỗi kết nối", "error");
+      toast("Connection error", "error");
       setAutoForward(!newValue);
     } finally {
       setIsSavingAutoForward(false);
@@ -152,14 +170,11 @@ export function TabProfile() {
   }
 
   return (
-    <div className="space-y-6 max-w-3xl font-sans">
+    <div className="space-y-6 max-w-3xl">
       <div>
         <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
           Profile Settings
         </h2>
-        <p className="mt-1 text-xs sm:text-sm text-zinc-500 dark:text-zinc-400">
-          Manage your account information, recovery email and security settings.
-        </p>
       </div>
 
       {/* Account Info Card */}
@@ -174,14 +189,14 @@ export function TabProfile() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs sm:text-sm">
           <div>
             <span className="block text-zinc-400 text-xs font-medium">Username</span>
-            <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">
+            <span className="font-semibold text-zinc-900 dark:text-zinc-100">
               {profile?.username || "-"}
             </span>
           </div>
 
           <div>
             <span className="block text-zinc-400 text-xs font-medium">System Email</span>
-            <span className="font-mono text-zinc-700 dark:text-zinc-300">
+            <span className="font-semibold text-zinc-900 dark:text-zinc-100">
               {profile?.email || (profile?.username ? `${profile.username}@mailtion.com` : "-")}
             </span>
           </div>
@@ -197,15 +212,64 @@ export function TabProfile() {
 
       {/* Recovery Email Card */}
       <div className="rounded-2xl border border-zinc-200 bg-white p-5 sm:p-6 shadow-xs dark:border-zinc-800 dark:bg-zinc-900/50 space-y-4">
-        <div className="flex items-center gap-2 pb-3 border-b border-zinc-100 dark:border-zinc-800">
-          <Mail className="h-5 w-5 text-blue-500" />
-          <div>
+        <div className="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800">
+          <div className="flex items-center gap-2">
+            <Mail className="h-5 w-5 text-blue-500" />
             <h3 className="text-sm sm:text-base font-bold text-zinc-900 dark:text-zinc-100">
               Recovery Email Address
             </h3>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Used to receive OTP codes if you ever forget your password.
-            </p>
+          </div>
+
+          {/* Warning Icon with Popover at the end */}
+          <div className="relative" ref={recoveryInfoRef}>
+            <button
+              type="button"
+              onClick={() => setShowRecoveryInfo(!showRecoveryInfo)}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 text-xs font-medium transition-colors cursor-pointer"
+              title="About Recovery Email"
+              aria-label="About Recovery Email"
+            >
+              <AlertTriangle className="h-4 w-4" />
+              <span className="hidden sm:inline">Info</span>
+            </button>
+
+            {/* Explanation popover / tooltip */}
+            {showRecoveryInfo && (
+              <div className="absolute right-0 top-full mt-2 z-30 w-72 sm:w-84 p-4 rounded-xl bg-zinc-900 text-zinc-100 text-xs shadow-2xl border border-zinc-800 dark:bg-zinc-800 dark:border-zinc-700 animate-in fade-in zoom-in-95 duration-150">
+                <div className="flex items-start justify-between gap-2 pb-2 mb-2 border-b border-zinc-800 dark:border-zinc-700">
+                  <div className="flex items-center gap-1.5 font-bold text-amber-400">
+                    <AlertTriangle className="h-4 w-4 shrink-0" />
+                    <span>Recovery Email Information</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowRecoveryInfo(false)}
+                    className="text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <div className="space-y-2 leading-relaxed text-zinc-300">
+                  <p>
+                    Your primary personal email address (e.g. Gmail, Outlook, iCloud) used for:
+                  </p>
+                  <ul className="space-y-1.5 pl-1">
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-amber-400 font-bold">•</span>
+                      <span><strong className="text-zinc-100">Account Recovery:</strong> Receive one-time verification codes (OTP) to reset your password if forgotten.</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-amber-400 font-bold">•</span>
+                      <span><strong className="text-zinc-100">Auto-Forward Destination:</strong> All incoming emails received by your Mailtion mailboxes will be automatically forwarded here when auto-forwarding is enabled.</span>
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="text-amber-400 font-bold">•</span>
+                      <span><strong className="text-zinc-100">Account Security:</strong> Each recovery email can only be associated with one Mailtion account to prevent abuse.</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -227,7 +291,7 @@ export function TabProfile() {
           <button
             type="submit"
             disabled={isSavingRecovery}
-            className="flex items-center gap-1.5 rounded-xl bg-zinc-900 px-4 py-2 text-xs sm:text-sm font-semibold text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200 transition-all shadow-xs disabled:opacity-50 cursor-pointer"
+            className="flex items-center gap-1.5 rounded-xl bg-zinc-900 px-4 py-2.5 text-xs sm:text-sm font-semibold text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200 transition-all shadow-xs disabled:opacity-50 cursor-pointer"
           >
             {isSavingRecovery ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
             <span>Save Recovery Email</span>
@@ -238,18 +302,13 @@ export function TabProfile() {
       {/* Auto-Forward Settings Card */}
       <div className="rounded-2xl border border-zinc-200 bg-white p-5 sm:p-6 shadow-xs dark:border-zinc-800 dark:bg-zinc-900/50 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400 mt-0.5 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400 shrink-0">
               <Forward className="h-5 w-5" />
             </div>
-            <div>
-              <h3 className="text-sm sm:text-base font-bold text-zinc-900 dark:text-zinc-100">
-                Tự động chuyển tiếp thư về Email gốc
-              </h3>
-              <p className="text-xs sm:text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-                Tự động chuyển tiếp bản sao tất cả email nhận được về địa chỉ email khôi phục ({recoveryEmail ? <span className="font-mono font-medium text-zinc-800 dark:text-zinc-200">{recoveryEmail}</span> : <span className="italic text-zinc-400">Chưa thiết lập</span>}).
-              </p>
-            </div>
+            <h3 className="text-sm sm:text-base font-bold text-zinc-900 dark:text-zinc-100">
+              Auto-Forward Emails to Recovery Address
+            </h3>
           </div>
 
           <div className="flex items-center gap-3 self-end sm:self-center">
@@ -269,7 +328,7 @@ export function TabProfile() {
 
         {!recoveryEmail && (
           <div className="text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 p-3 rounded-xl border border-amber-200/80 dark:border-amber-900/50">
-            💡 Bạn cần lưu địa chỉ Email khôi phục ở trên để sử dụng tính năng chuyển tiếp thư tự động.
+            💡 You need to configure a recovery email address above to enable auto-forwarding.
           </div>
         )}
       </div>
@@ -278,14 +337,9 @@ export function TabProfile() {
       <div className="rounded-2xl border border-zinc-200 bg-white p-5 sm:p-6 shadow-xs dark:border-zinc-800 dark:bg-zinc-900/50 space-y-4">
         <div className="flex items-center gap-2 pb-3 border-b border-zinc-100 dark:border-zinc-800">
           <KeyRound className="h-5 w-5 text-amber-500" />
-          <div>
-            <h3 className="text-sm sm:text-base font-bold text-zinc-900 dark:text-zinc-100">
-              Change Password
-            </h3>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              Keep your account secure with a strong password.
-            </p>
-          </div>
+          <h3 className="text-sm sm:text-base font-bold text-zinc-900 dark:text-zinc-100">
+            Change Password
+          </h3>
         </div>
 
         <form onSubmit={handleChangePassword} className="space-y-4 max-w-md">
@@ -334,7 +388,7 @@ export function TabProfile() {
           <button
             type="submit"
             disabled={isChangingPass}
-            className="flex items-center gap-1.5 rounded-xl bg-zinc-900 px-4 py-2 text-xs sm:text-sm font-semibold text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200 transition-all shadow-xs disabled:opacity-50 cursor-pointer"
+            className="flex items-center gap-1.5 rounded-xl bg-zinc-900 px-4 py-2.5 text-xs sm:text-sm font-semibold text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200 transition-all shadow-xs disabled:opacity-50 cursor-pointer"
           >
             {isChangingPass ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
             <span>Update Password</span>
@@ -346,3 +400,4 @@ export function TabProfile() {
 }
 
 export default TabProfile;
+

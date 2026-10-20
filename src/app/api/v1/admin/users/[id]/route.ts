@@ -94,7 +94,7 @@ export async function PUT(
     username = username.replace(/@mailtion\.com$/, "").trim();
 
     const recoveryEmail = body.recoveryEmail !== undefined ? (body.recoveryEmail ? body.recoveryEmail.trim().toLowerCase() : null) : undefined;
-    const role = body.role !== undefined ? (body.role === "admin" ? "admin" : "user") : targetUser.role;
+    const role = body.role !== undefined ? (body.role === "admin" ? "admin" : (body.role === "multi" ? "multi" : "user")) : targetUser.role;
     const status = body.status !== undefined ? (body.status === "suspended" ? "suspended" : "active") : targetUser.status;
     const newPassword = body.password?.trim() || "";
 
@@ -177,8 +177,11 @@ export async function PUT(
       `).run(role, id);
     }
 
-    if (body.maxMailboxes !== undefined) {
-      const maxMb = Math.max(1, parseInt(body.maxMailboxes, 10) || 1);
+    if (body.maxMailboxes !== undefined || role !== targetUser.role) {
+      const defaultMax = role === "admin" ? 999999 : (role === "multi" ? 100 : 1);
+      const maxMb = body.maxMailboxes !== undefined 
+        ? Math.max(1, parseInt(body.maxMailboxes, 10) || defaultMax) 
+        : (role === "multi" ? 100 : (role === "admin" ? 999999 : 1));
       db.prepare(`
         UPDATE users 
         SET max_mailboxes = ?, updated_at = CURRENT_TIMESTAMP 

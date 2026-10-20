@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { X, Dices, Mail, Plus, Loader2, Sparkles, Layers, AlertCircle } from "lucide-react";
+import { X, Dices, Mail, Plus, Loader2, Sparkles, Layers, AlertCircle, Forward } from "lucide-react";
 import { useToast } from "./toast";
 
 interface CreateMailboxModalProps {
@@ -28,11 +28,14 @@ export function CreateMailboxModal({
   const [displayName, setDisplayName] = useState("");
   const [tag, setTag] = useState("");
   const [note, setNote] = useState("");
+  const [enableForward, setEnableForward] = useState(true);
+  const [forwardTo, setForwardTo] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentCount, setCurrentCount] = useState<number | null>(null);
 
   const isAdmin = currentUser?.role === "admin";
-  const maxQuota = isAdmin ? 999999 : (currentUser?.maxMailboxes ?? 1);
+  const isMulti = currentUser?.role === "multi" || (currentUser?.maxMailboxes !== undefined && currentUser.maxMailboxes > 1);
+  const maxQuota = isAdmin ? 999999 : (isMulti ? Math.max(100, currentUser?.maxMailboxes || 100) : (currentUser?.maxMailboxes ?? 1));
 
   // Fetch current mailboxes count when modal opens
   useEffect(() => {
@@ -90,6 +93,8 @@ export function CreateMailboxModal({
           name: displayName.trim() || undefined,
           tag: tag.trim() || undefined,
           note: note.trim() || undefined,
+          forwardTo: forwardTo.trim() || undefined,
+          isForwardEnabled: enableForward,
         }),
       });
 
@@ -100,6 +105,8 @@ export function CreateMailboxModal({
         setDisplayName("");
         setTag("");
         setNote("");
+        setForwardTo("");
+        setEnableForward(true);
         onSuccess();
         onClose();
       } else {
@@ -156,7 +163,7 @@ export function CreateMailboxModal({
             <div>
               <p className="font-semibold">Single Mailbox Account</p>
               <p className="mt-0.5 text-amber-700 dark:text-amber-400/90 leading-relaxed">
-                Standard accounts are limited to 1 primary email address. Contact an administrator to upgrade your account quota for multi-mailbox privileges.
+                Standard accounts are limited to 1 primary email address. Contact an administrator to upgrade to a Multi account (up to 100 mailboxes).
               </p>
             </div>
           </div>
@@ -262,6 +269,44 @@ export function CreateMailboxModal({
               placeholder="Private note about this address..."
               className="w-full rounded-xl border border-zinc-200 bg-zinc-50/70 px-3.5 py-2 text-sm text-zinc-900 focus:border-blue-600 focus:bg-white outline-none dark:border-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-100 disabled:opacity-50 transition-all resize-none"
             />
+          </div>
+
+          {/* Forwarding Settings */}
+          <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-800/40 p-3.5 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Forward className="h-4 w-4 text-blue-500" />
+                <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">
+                  Backup / Forwarding Email
+                </span>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  disabled={isAtLimit || isSingleOnly}
+                  checked={enableForward}
+                  onChange={(e) => setEnableForward(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-9 h-5 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600 dark:bg-zinc-700 disabled:opacity-50"></div>
+              </label>
+            </div>
+
+            {enableForward && (
+              <div className="space-y-1 animate-in fade-in duration-100">
+                <input
+                  type="email"
+                  disabled={isAtLimit || isSingleOnly}
+                  value={forwardTo}
+                  onChange={(e) => setForwardTo(e.target.value)}
+                  placeholder="Backup destination email (e.g. backup@gmail.com)"
+                  className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-900 focus:border-blue-600 outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 transition-all"
+                />
+                <p className="text-[11px] text-zinc-400 leading-tight">
+                  Incoming emails to this child address will be forwarded only to this backup email. (Account recovery email only receives messages for the primary address).
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Form Actions */}

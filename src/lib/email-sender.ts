@@ -187,17 +187,17 @@ export async function sendForwardedEmail({
       </div>
       <table style="font-size: 13px; color: #1e293b; border-collapse: collapse; width: 100%;">
         <tr>
-          <td style="padding: 2px 0; color: #64748b; width: 120px;"><strong>Hộp thư Mailtion:</strong></td>
+          <td style="padding: 2px 0; color: #64748b; width: 140px;"><strong>Mailtion Mailbox:</strong></td>
           <td style="padding: 2px 0;"><code style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 12px;">${originalTo}</code></td>
         </tr>
         <tr>
-          <td style="padding: 2px 0; color: #64748b;"><strong>Người gửi:</strong></td>
+          <td style="padding: 2px 0; color: #64748b;"><strong>Sender:</strong></td>
           <td style="padding: 2px 0;">${fromDisplay}</td>
         </tr>
         ${
           otpCode
             ? `<tr>
-                <td style="padding: 2px 0; color: #64748b;"><strong>Mã OTP / Code:</strong></td>
+                <td style="padding: 2px 0; color: #64748b;"><strong>OTP / Code:</strong></td>
                 <td style="padding: 2px 0;"><span style="font-size: 16px; font-weight: 700; color: #2563eb; background: #dbeafe; padding: 2px 8px; border-radius: 4px; font-family: monospace;">${otpCode}</span></td>
               </tr>`
             : ""
@@ -205,7 +205,7 @@ export async function sendForwardedEmail({
         ${
           emailAttachments.length > 0
             ? `<tr>
-                <td style="padding: 2px 0; color: #64748b;"><strong>File đính kèm:</strong></td>
+                <td style="padding: 2px 0; color: #64748b;"><strong>Attachments:</strong></td>
                 <td style="padding: 2px 0;">📎 ${emailAttachments.map((a) => a.filename).join(", ")}</td>
               </tr>`
             : ""
@@ -220,22 +220,22 @@ export async function sendForwardedEmail({
       <body style="margin: 0; padding: 12px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
         ${headerBannerHtml}
         <div style="font-size: 14px; line-height: 1.6; color: #334155;">
-          ${html || (text ? `<p style="white-space: pre-wrap;">${text}</p>` : "<p>(Nội dung trống)</p>")}
+          ${html || (text ? `<p style="white-space: pre-wrap;">${text}</p>` : "<p>(No content)</p>")}
         </div>
       </body>
     </html>
   `;
 
   const fallbackText = `[Mailtion Auto-Forward]
-Hộp thư Mailtion: ${originalTo}
-Người gửi: ${fromDisplay}
-${otpCode ? `Mã OTP: ${otpCode}\n` : ""}${
+Mailtion Mailbox: ${originalTo}
+Sender: ${fromDisplay}
+${otpCode ? `OTP Code: ${otpCode}\n` : ""}${
   emailAttachments.length > 0
-    ? `File đính kèm: ${emailAttachments.map((a) => a.filename).join(", ")}\n`
+    ? `Attachments: ${emailAttachments.map((a) => a.filename).join(", ")}\n`
     : ""
 }--------------------------------------------------
 
-${text || "(Nội dung trống)"}`;
+${text || "(No content)"}`;
 
   return await sendEmail({
     to,

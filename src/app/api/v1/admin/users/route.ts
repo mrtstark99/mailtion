@@ -135,9 +135,10 @@ export async function POST(req: NextRequest) {
 
     const password = body.password || "";
     const recoveryEmail = (body.recoveryEmail || "").trim().toLowerCase() || null;
-    const role = body.role === "admin" ? "admin" : "user";
+    const role = body.role === "admin" ? "admin" : (body.role === "multi" ? "multi" : "user");
     const status = body.status === "suspended" ? "suspended" : "active";
-    const maxMailboxes = role === "admin" ? 999999 : (body.maxMailboxes ? Math.max(1, parseInt(body.maxMailboxes, 10) || 1) : 1);
+    const defaultMax = role === "admin" ? 999999 : (role === "multi" ? 100 : 1);
+    const maxMailboxes = role === "admin" ? 999999 : (body.maxMailboxes ? Math.max(1, parseInt(body.maxMailboxes, 10) || defaultMax) : defaultMax);
 
     if (!username) {
       return NextResponse.json({ error: "Username is required" }, { status: 400 });

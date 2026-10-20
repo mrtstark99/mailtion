@@ -22,6 +22,7 @@ import { TabApiKeys } from "@/components/tab-api-keys";
 import { TabCloudflare } from "@/components/tab-cloudflare";
 import { TabSettings } from "@/components/tab-settings";
 import { TabProfile } from "@/components/tab-profile";
+import { TabMailboxes } from "@/components/tab-mailboxes";
 import { TabAdminDashboard } from "@/components/tab-admin-dashboard";
 import { ComposeModal } from "@/components/compose-modal";
 import { CreateMailboxModal } from "@/components/create-mailbox-modal";
@@ -125,7 +126,11 @@ function DashboardContent() {
     if (currentUser?.role === "admin" && (activeTab === "inbox" || activeTab === "overview" || activeTab === "mailboxes")) {
       setActiveTab("admin_users");
     } else if (currentUser && currentUser.role !== "admin") {
-      if (activeTab !== "inbox" && activeTab !== "profile") {
+      const allowed = ["inbox", "profile"];
+      if (currentUser.role === "multi" || (currentUser.maxMailboxes && currentUser.maxMailboxes > 1)) {
+        allowed.push("mailboxes");
+      }
+      if (!allowed.includes(activeTab)) {
         setActiveTab("inbox");
       }
     }
@@ -191,6 +196,7 @@ function DashboardContent() {
   }
 
   const isAdmin = currentUser?.role === "admin";
+  const isMulti = currentUser?.role === "multi" || (currentUser?.maxMailboxes !== undefined && currentUser.maxMailboxes > 1);
 
   // Tab definitions in English
   const userTabs = [
@@ -201,6 +207,17 @@ function DashboardContent() {
       badge: stats && stats.unreadMessages > 0 ? `${stats.unreadMessages} new` : undefined,
       badgeColor: "bg-blue-500 text-white",
     },
+    ...(isMulti
+      ? [
+          {
+            id: "mailboxes",
+            label: "Mailboxes",
+            icon: Mail,
+            badge: `${stats?.totalMailboxes || 1}/${currentUser?.maxMailboxes || 100}`,
+            badgeColor: "bg-purple-600 text-white",
+          },
+        ]
+      : []),
     { id: "profile", label: "Profile Settings", icon: UserCircle },
   ];
 
@@ -228,7 +245,7 @@ function DashboardContent() {
         darkMode={darkMode}
         setDarkMode={setDarkMode}
         onRefreshAll={handleRefreshAll}
-        onOpenAddMailbox={() => setIsCreateMailboxOpen(true)}
+        onOpenAddMailbox={isAdmin || isMulti ? () => setIsCreateMailboxOpen(true) : undefined}
         onOpenCompose={isAdmin ? () => setIsComposeOpen(true) : undefined}
         onOpenDashboard={
           isAdmin
@@ -314,6 +331,14 @@ function DashboardContent() {
                 refreshTrigger={refreshTrigger}
                 initialMailboxFilter={inboxFilterAddress || undefined}
                 currentUser={currentUser}
+              />
+            )}
+            {activeTab === "mailboxes" && !isAdmin && isMulti && (
+              <TabMailboxes
+                isAdmin={false}
+                maxMailboxes={isMulti ? Math.max(100, currentUser.maxMailboxes || 100) : (currentUser.maxMailboxes || 1)}
+                onOpenInboxForMailbox={handleOpenInboxForMailbox}
+                refreshTrigger={refreshTrigger}
               />
             )}
             {activeTab === "webhooks" && isAdmin && <TabWebhooks />}

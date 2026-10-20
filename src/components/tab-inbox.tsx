@@ -157,6 +157,7 @@ export function TabInbox({
 
   // Mailboxes State
   const [mailboxes, setMailboxes] = useState<MailboxItem[]>([]);
+  const [totalMailboxes, setTotalMailboxes] = useState<number | null>(null);
   const [selectedMailbox, setSelectedMailbox] = useState<MailboxItem | null>(null);
   const [mbLoading, setMbLoading] = useState(false);
   const [mbSearch, setMbSearch] = useState("");
@@ -237,6 +238,7 @@ export function TabInbox({
       if (res.ok) {
         const items = data.items || [];
         setMailboxes(items);
+        setTotalMailboxes(typeof data.total === "number" ? data.total : items.length);
         if (effectiveFilter) {
           const match = items.find((m: MailboxItem) => m.address.toLowerCase() === effectiveFilter.toLowerCase());
           if (match) setSelectedMailbox(match);
@@ -388,7 +390,9 @@ export function TabInbox({
   }, [messages, quickFilter, msgSearch, getOtp]);
 
   const selectedOtp = selectedMessage ? getOtp(selectedMessage) : null;
-  const maxQuota = currentUser?.maxMailboxes ?? 1;
+  const isMulti = currentUser?.role === "multi" || (currentUser?.maxMailboxes !== undefined && currentUser.maxMailboxes > 1);
+  const maxQuota = currentUser?.role === "admin" ? 999999 : (isMulti ? Math.max(100, currentUser?.maxMailboxes || 100) : (currentUser?.maxMailboxes ?? 1));
+  const currentMailboxCount = totalMailboxes ?? mailboxes.length;
 
   // Workspace container styling based on fullscreen mode
   const containerClasses = isFullScreen
@@ -420,12 +424,8 @@ export function TabInbox({
             </div>
           )}
 
-          {/* User & Mailbox Info Chip */}
+          {/* Mailbox Info Badges */}
           <div className="flex items-center gap-2 min-w-0">
-            <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 truncate">
-              {currentUser?.username ? `@${currentUser.username}` : "My Account"}
-            </span>
-
             {/* Mailbox count badge */}
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-900/60 shrink-0">
               <Layers className="h-3 w-3" />
@@ -605,20 +605,36 @@ export function TabInbox({
 
           {/* Mailbox Quota Bar at Bottom */}
           <div className="p-3 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50/50 dark:bg-zinc-900/50">
-            <div className="flex items-center justify-between text-xs text-zinc-500 mb-1.5">
-              <span className="font-medium">Quota Used</span>
-              <span className="font-bold text-zinc-800 dark:text-zinc-200 font-mono">
-                {mailboxes.length} / {maxQuota}
-              </span>
-            </div>
-            <div className="w-full h-1.5 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-blue-600 rounded-full transition-all"
-                style={{
-                  width: `${Math.min(100, (mailboxes.length / Math.max(1, maxQuota)) * 100)}%`,
-                }}
-              />
-            </div>
+            {isMulti ? (
+              <>
+                <div className="flex items-center justify-between text-xs text-zinc-500 mb-1.5">
+                  <span className="font-medium flex items-center gap-1.5">
+                    <span>Mailboxes Used</span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-md font-semibold bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300">
+                      Multi
+                    </span>
+                  </span>
+                  <span className="font-bold text-zinc-800 dark:text-zinc-200 font-mono">
+                    {currentMailboxCount} / {maxQuota}
+                  </span>
+                </div>
+                <div className="w-full h-1.5 bg-zinc-200 dark:bg-zinc-700 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-blue-600 rounded-full transition-all"
+                    style={{
+                      width: `${Math.min(100, (currentMailboxCount / Math.max(1, maxQuota)) * 100)}%`,
+                    }}
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center justify-between text-xs text-zinc-500">
+                <span className="font-medium">Account Plan</span>
+                <span className="font-semibold text-zinc-700 dark:text-zinc-300">
+                  Standard (1 Primary Mail)
+                </span>
+              </div>
+            )}
           </div>
         </aside>
 
