@@ -241,7 +241,7 @@ function DashboardContent() {
         currentUser={currentUser}
       />
 
-      <main className="flex-1 w-full max-w-screen-2xl mx-auto px-3 sm:px-6 lg:px-8 py-3.5 sm:py-6 space-y-4 sm:space-y-6">
+      <main className={`flex-1 w-full ${activeTab === "inbox" ? "max-w-none px-2 sm:px-4 lg:px-6" : "max-w-screen-2xl mx-auto px-3 sm:px-6 lg:px-8"} py-3.5 sm:py-6 space-y-4 sm:space-y-6`}>
         <div className="flex flex-col md:flex-row gap-4 lg:gap-8 items-start">
           {/* Sidebar Nav */}
           <aside className="w-full md:w-60 lg:w-64 shrink-0">
@@ -315,6 +315,7 @@ function DashboardContent() {
               <TabInbox
                 refreshTrigger={refreshTrigger}
                 initialMailboxFilter={inboxFilterAddress || undefined}
+                currentUser={currentUser}
               />
             )}
             {activeTab === "webhooks" && isAdmin && <TabWebhooks />}
