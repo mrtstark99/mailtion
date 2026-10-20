@@ -1708,6 +1708,25 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
 
                         {/* Actions Toolbar */}
                         <div className="flex items-center gap-1.5 shrink-0">
+                          {/* Open in new browser tab */}
+                          <button
+                            onClick={() => {
+                              if (!selectedMessage) return;
+                              const win = window.open("", "_blank");
+                              if (win) {
+                                const content = selectedMessage.body_html
+                                  ? ensureLinksOpenInNewTab(selectedMessage.body_html)
+                                  : `<pre style="font-family:sans-serif;white-space:pre-wrap;padding:24px;">${selectedMessage.body_text || ""}</pre>`;
+                                win.document.write(`<!DOCTYPE html><html><head><title>${(selectedMessage.subject || "Email").replace(/</g, "&lt;")}</title><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body style="margin:0;padding:24px;background:#f9fafb;">${content}</body></html>`);
+                                win.document.close();
+                              }
+                            }}
+                            className="p-2 rounded-xl border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-300 transition-all cursor-pointer"
+                            title="Open email in new browser tab"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </button>
+
                           <button
                             onClick={() => handleToggleRead(selectedMessage.id, selectedMessage.is_read)}
                             className="p-2 rounded-xl border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-300 transition-all cursor-pointer"
@@ -1850,20 +1869,20 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                     </div>
 
                     {/* Content Display Canvas */}
-                    <div className="flex-1 p-4 sm:p-6 overflow-y-auto">
+                    <div className="flex-1 p-3 sm:p-5 overflow-y-auto flex flex-col">
                       {activeMessageViewTab === "html" && (
                         selectedMessage.body_html ? (
-                          <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white p-4 overflow-x-auto min-h-[500px] shadow-xs">
+                          <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white p-4 overflow-x-auto min-h-[850px] lg:min-h-[950px] flex-1 flex flex-col shadow-xs">
                             <iframe
                               title="Email HTML Preview"
                               sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
                               srcDoc={ensureLinksOpenInNewTab(selectedMessage.body_html)}
-                              className="w-full min-h-[600px] border-0"
+                              className="w-full min-h-[850px] lg:min-h-[950px] flex-1 border-0"
                             />
                           </div>
                         ) : (
                           <div
-                            className="p-6 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-850/50 text-sm whitespace-pre-wrap font-sans text-zinc-800 dark:text-zinc-200 [&_a]:text-blue-600 [&_a]:underline"
+                            className="p-6 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-850/50 text-sm whitespace-pre-wrap font-sans text-zinc-800 dark:text-zinc-200 min-h-[600px] flex-1 [&_a]:text-blue-600 [&_a]:underline"
                             dangerouslySetInnerHTML={{ __html: formatPlainTextWithLinks(selectedMessage.body_text || "(Empty content)") }}
                           />
                         )
@@ -1871,13 +1890,13 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
 
                       {activeMessageViewTab === "text" && (
                         <div
-                          className="p-5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-850/50 text-xs font-mono text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap overflow-x-auto [&_a]:text-blue-600 [&_a]:underline"
+                          className="p-5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-850/50 text-xs font-mono text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap overflow-x-auto min-h-[600px] flex-1 [&_a]:text-blue-600 [&_a]:underline"
                           dangerouslySetInnerHTML={{ __html: formatPlainTextWithLinks(selectedMessage.body_text || "(No plain text content)") }}
                         />
                       )}
 
                       {activeMessageViewTab === "headers" && (
-                        <div className="space-y-2">
+                        <div className="space-y-2 flex-1 flex flex-col">
                           <div className="flex items-center justify-end">
                             <button
                               onClick={() => {
@@ -1890,7 +1909,7 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                               <span>Copy Headers</span>
                             </button>
                           </div>
-                          <pre className="p-5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-850/50 text-[11px] font-mono text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap overflow-x-auto">
+                          <pre className="p-5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-850/50 text-[11px] font-mono text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap overflow-x-auto min-h-[600px] flex-1">
                             {selectedMessage.raw_headers || "(No raw headers available)"}
                           </pre>
                         </div>
