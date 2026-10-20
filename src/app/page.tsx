@@ -34,6 +34,7 @@ interface CurrentUser {
   username: string;
   role: string;
   email?: string;
+  maxMailboxes?: number;
 }
 
 interface StatsData {
@@ -97,7 +98,7 @@ function DashboardContent() {
           if (data.user) {
             setCurrentUser(data.user);
             if (data.user.role === "admin") {
-              setActiveTab("overview");
+              setActiveTab("admin_users");
             } else {
               setActiveTab("mailboxes");
             }
@@ -118,6 +119,13 @@ function DashboardContent() {
     }
     checkAuth();
   }, []);
+
+  // Strict guard: Admin accounts cannot display or stay on mailboxes/inbox
+  useEffect(() => {
+    if (currentUser?.role === "admin" && (activeTab === "mailboxes" || activeTab === "inbox")) {
+      setActiveTab("admin_users");
+    }
+  }, [currentUser, activeTab]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -152,8 +160,12 @@ function DashboardContent() {
   };
 
   const handleOpenInboxForMailbox = (address: string) => {
-    setInboxFilterAddress(address);
-    setActiveTab("inbox");
+    if (currentUser?.role === "admin") {
+      setActiveTab("admin_users");
+    } else {
+      setInboxFilterAddress(address);
+      setActiveTab("inbox");
+    }
   };
 
   const handleQuickGenerateFromOverview = async (count: number) => {
@@ -171,7 +183,7 @@ function DashboardContent() {
       if (res.ok) {
         toast(`Successfully created ${count} random mailboxes!`, "success");
         setRefreshTrigger((prev) => prev + 1);
-        setActiveTab("mailboxes");
+        setActiveTab("admin_users");
       }
     } catch {
       toast("Error generating mailboxes", "error");
@@ -218,14 +230,6 @@ function DashboardContent() {
       icon: Users,
       badge: "Admin",
       badgeColor: "bg-purple-600 text-white",
-    },
-    { id: "mailboxes", label: "Mailboxes", icon: Mail, badge: stats?.activeMailboxes },
-    {
-      id: "inbox",
-      label: "Inbox",
-      icon: Inbox,
-      badge: stats && stats.unreadMessages > 0 ? `${stats.unreadMessages} new` : undefined,
-      badgeColor: "bg-blue-500 text-white",
     },
     { id: "overview", label: "Overview", icon: LayoutDashboard },
     { id: "generator", label: "Bulk Generator", icon: Sparkles },
@@ -330,18 +334,18 @@ function DashboardContent() {
               <TabGenerator
                 onGenerated={() => {
                   setRefreshTrigger((prev) => prev + 1);
-                  setActiveTab("mailboxes");
                 }}
               />
             )}
-            {activeTab === "mailboxes" && (
+            {activeTab === "mailboxes" && !isAdmin && (
               <TabMailboxes
                 onOpenInboxForMailbox={handleOpenInboxForMailbox}
                 refreshTrigger={refreshTrigger}
-                isAdmin={isAdmin}
+                isAdmin={false}
+                maxMailboxes={currentUser?.maxMailboxes ?? 1}
               />
             )}
-            {activeTab === "inbox" && (
+            {activeTab === "inbox" && !isAdmin && (
               <TabInbox
                 refreshTrigger={refreshTrigger}
                 initialMailboxFilter={inboxFilterAddress || undefined}

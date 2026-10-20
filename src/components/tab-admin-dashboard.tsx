@@ -701,11 +701,18 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
 
                       {/* Mailbox count */}
                       <td className="py-3.5 px-4 text-center hidden sm:table-cell">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300" title="Hộp thư hiện có / Hạn mức tối đa">
-                          <span className="font-semibold text-zinc-900 dark:text-zinc-100">{u.mailbox_count || 1}</span>
-                          <span className="text-zinc-400">/</span>
-                          <span>{u.role === "admin" ? "∞" : (u.max_mailboxes || 1)}</span>
-                        </span>
+                        <div className="inline-flex flex-col items-center gap-0.5">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300" title="Hộp thư hiện có / Hạn mức tối đa">
+                            <span className="font-semibold text-zinc-900 dark:text-zinc-100">{u.mailbox_count || 1}</span>
+                            <span className="text-zinc-400">/</span>
+                            <span>{u.role === "admin" ? "∞" : (u.max_mailboxes || 1)}</span>
+                          </span>
+                          {u.role !== "admin" && (u.max_mailboxes || 1) > 1 && (
+                            <span className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold">
+                              Đã cấp quyền ({u.max_mailboxes})
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Message count */}
@@ -932,6 +939,31 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
                 </div>
               </div>
 
+              {addForm.role !== "admin" && (
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                    Cấp quyền tạo nhiều email (Hạn mức hộp thư)
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      max={1000}
+                      value={addForm.maxMailboxes}
+                      onChange={(e) =>
+                        setAddForm({ ...addForm, maxMailboxes: Math.max(1, parseInt(e.target.value, 10) || 1) })
+                      }
+                      className="w-24 px-3.5 py-2 text-sm rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-zinc-900 dark:text-zinc-100 font-mono"
+                    />
+                    <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                      {addForm.maxMailboxes <= 1
+                        ? "(Mặc định 1: Chỉ 1 email duy nhất)"
+                        : `(Đã cấp quyền: Tối đa ${addForm.maxMailboxes} email)`}
+                    </span>
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-zinc-200 dark:border-zinc-800">
                 <button
                   type="button"
@@ -1046,21 +1078,25 @@ export function TabAdminDashboard({ currentUserId, onRefreshAll }: TabAdminDashb
               {editForm.role !== "admin" && (
                 <div>
                   <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
-                    Hạn mức hộp thư (Mailbox Quota)
+                    Cấp quyền tạo nhiều email (Hạn mức hộp thư)
                   </label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={100}
-                    value={editForm.maxMailboxes}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, maxMailboxes: Math.max(1, parseInt(e.target.value, 10) || 1) })
-                    }
-                    className="w-full px-3.5 py-2 text-sm rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-zinc-900 dark:text-zinc-100"
-                  />
-                  <p className="mt-1 text-[11px] text-zinc-400">
-                    Mỗi người dùng tiêu chuẩn chỉ được đăng ký tối đa 1 email (mặc định: 1).
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      max={1000}
+                      value={editForm.maxMailboxes}
+                      onChange={(e) =>
+                        setEditForm({ ...editForm, maxMailboxes: Math.max(1, parseInt(e.target.value, 10) || 1) })
+                      }
+                      className="w-24 px-3.5 py-2 text-sm rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50/50 dark:bg-zinc-800/50 text-zinc-900 dark:text-zinc-100 font-mono"
+                    />
+                    <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                      {editForm.maxMailboxes <= 1
+                        ? "(Mặc định 1: Chỉ 1 email, không hiển thị chức năng tạo email)"
+                        : `(Đã cấp quyền: Cho phép user tự tạo tối đa ${editForm.maxMailboxes} email)`}
+                    </span>
+                  </div>
                 </div>
               )}
 

@@ -9,6 +9,7 @@ export interface CurrentUser {
   recovery_email: string | null;
   role: "admin" | "user";
   status: "active" | "suspended";
+  max_mailboxes: number;
   created_at: string;
 }
 
@@ -21,7 +22,7 @@ export async function getCurrentUser(req: NextRequest): Promise<CurrentUser | nu
 
   try {
     const user = db.prepare(`
-      SELECT id, username, email, recovery_email, role, COALESCE(status, 'active') as status, created_at
+      SELECT id, username, email, recovery_email, role, COALESCE(status, 'active') as status, COALESCE(max_mailboxes, 1) as max_mailboxes, created_at
       FROM users 
       WHERE lower(username) = ? OR lower(email) = ?
     `).get(session.username.toLowerCase(), session.username.toLowerCase()) as CurrentUser | undefined;

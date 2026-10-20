@@ -58,6 +58,13 @@ export async function POST(req: NextRequest) {
       ).get(user.id) as { max_mailboxes: number } | undefined;
       const maxAllowed = userRow?.max_mailboxes ?? 1;
 
+      if (maxAllowed <= 1) {
+        return NextResponse.json(
+          { error: "Tài khoản của bạn chưa được cấp quyền tạo thêm địa chỉ email. Mỗi tài khoản mặc định chỉ sử dụng 1 địa chỉ email nhận thư." },
+          { status: 403 }
+        );
+      }
+
       const currentCountRow = db.prepare(
         "SELECT COUNT(*) as count FROM mailboxes WHERE user_id = ?"
       ).get(user.id) as { count: number } | undefined;
@@ -65,7 +72,7 @@ export async function POST(req: NextRequest) {
 
       if (currentCount >= maxAllowed) {
         return NextResponse.json(
-          { error: `Tài khoản của bạn chỉ được phép đăng ký tối đa ${maxAllowed} email. Bạn không thể tạo thêm hộp thư mới.` },
+          { error: `Tài khoản của bạn đã đạt hạn mức tối đa (${maxAllowed} email). Không thể tạo thêm hộp thư mới.` },
           { status: 403 }
         );
       }

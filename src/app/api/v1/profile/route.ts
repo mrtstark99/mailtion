@@ -11,10 +11,10 @@ export async function GET(req: NextRequest) {
     }
 
     const row = db.prepare(`
-      SELECT id, username, email, recovery_email, role, COALESCE(auto_forward, 1) as auto_forward, created_at, updated_at
+      SELECT id, username, email, recovery_email, role, COALESCE(max_mailboxes, 1) as max_mailboxes, COALESCE(auto_forward, 1) as auto_forward, created_at, updated_at
       FROM users
       WHERE id = ?
-    `).get(user.id) as { id: string; username: string; email: string; recovery_email: string; role: string; auto_forward: number; created_at: string; updated_at: string } | undefined;
+    `).get(user.id) as { id: string; username: string; email: string; recovery_email: string; role: string; max_mailboxes: number; auto_forward: number; created_at: string; updated_at: string } | undefined;
 
     if (!row) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -27,6 +27,7 @@ export async function GET(req: NextRequest) {
         email: row.email,
         recoveryEmail: row.recovery_email,
         autoForward: Boolean(row.auto_forward),
+        maxMailboxes: row.max_mailboxes,
         role: row.role,
         createdAt: row.created_at,
         updatedAt: row.updated_at,

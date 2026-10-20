@@ -16,6 +16,7 @@ export async function GET(req: NextRequest) {
       recoveryEmail: user.recovery_email,
       role: user.role,
       status: user.status,
+      maxMailboxes: user.max_mailboxes,
       createdAt: user.created_at,
     },
   });
