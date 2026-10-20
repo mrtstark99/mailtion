@@ -1,4 +1,4 @@
-import { Resend } from "resend";
+import { Resend, type Attachment } from "resend";
 import { db } from "./db";
 
 export function getResendClient(): { client: Resend | null; fromEmail: string } {
@@ -29,6 +29,7 @@ export async function sendEmail({
   text,
   from,
   replyTo,
+  attachments,
 }: {
   to: string | string[];
   subject: string;
@@ -36,6 +37,7 @@ export async function sendEmail({
   text?: string;
   from?: string;
   replyTo?: string;
+  attachments?: Attachment[];
 }) {
   const { client, fromEmail } = getResendClient();
   if (!client) {
@@ -52,6 +54,7 @@ export async function sendEmail({
       html: string;
       text: string;
       reply_to?: string;
+      attachments?: Attachment[];
     } = {
       from: sender,
       to,
@@ -61,6 +64,9 @@ export async function sendEmail({
     };
     if (replyTo) {
       payload.reply_to = replyTo;
+    }
+    if (attachments && attachments.length > 0) {
+      payload.attachments = attachments;
     }
 
     const result = await client.emails.send(payload);
@@ -79,6 +85,7 @@ export async function sendEmail({
           html: string;
           text: string;
           reply_to?: string;
+          attachments?: Attachment[];
         } = {
           from: "Mailtion <onboarding@resend.dev>",
           to,
@@ -88,6 +95,9 @@ export async function sendEmail({
         };
         if (replyTo) {
           fallbackPayload.reply_to = replyTo;
+        }
+        if (attachments && attachments.length > 0) {
+          fallbackPayload.attachments = attachments;
         }
         const fallbackResult = await client.emails.send(fallbackPayload);
         if (fallbackResult.error) {
@@ -114,6 +124,7 @@ export async function sendForwardedEmail({
   html,
   text,
   otpCode,
+  attachments,
 }: {
   to: string;
   originalTo: string;
@@ -123,9 +134,51 @@ export async function sendForwardedEmail({
   html?: string;
   text?: string;
   otpCode?: string;
+  attachments?: Array<{
+    filename: string;
+    contentType?: string;
+    size?: number;
+    content?: string | null;
+  }>;
 }) {
   const fromDisplay = originalFromName ? `${originalFromName} <${originalFrom}>` : originalFrom;
   const fwdSubject = subject ? `[Mailtion Fwd] ${subject}` : `[Mailtion Fwd] Email to ${originalTo}`;
+
+  // Process attachments
+  const emailAttachments: Attachment[] = [];
+  let totalBytes = 0;
+  const maxBytes = 25 * 1024 * 1024; // 25MB safety threshold for Resend
+
+  if (attachments && attachments.length > 0) {
+    for (const att of attachments) {
+      if (!att.content) continue;
+      try {
+        let buf: Buffer;
+        if (Buffer.isBuffer(att.content)) {
+          buf = att.content;
+        } else if (typeof att.content === "string") {
+          const cleanBase64 = att.content.replace(/^data:[^;]+;base64,/, "").trim();
+          buf = Buffer.from(cleanBase64, "base64");
+        } else {
+          continue;
+        }
+
+        if (totalBytes + buf.length > maxBytes) {
+          console.warn(`[AutoForward] Skipping attachment "${att.filename}" as total payload exceeds 25MB limit.`);
+          continue;
+        }
+
+        totalBytes += buf.length;
+        emailAttachments.push({
+          filename: att.filename || "attachment",
+          contentType: att.contentType || "application/octet-stream",
+          content: buf,
+        });
+      } catch (err) {
+        console.error(`[AutoForward] Failed to prepare attachment "${att.filename}":`, err);
+      }
+    }
+  }
 
   const headerBannerHtml = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 16px; margin-bottom: 20px;">
@@ -149,6 +202,14 @@ export async function sendForwardedEmail({
               </tr>`
             : ""
         }
+        ${
+          emailAttachments.length > 0
+            ? `<tr>
+                <td style="padding: 2px 0; color: #64748b;"><strong>File đính kèm:</strong></td>
+                <td style="padding: 2px 0;">📎 ${emailAttachments.map((a) => a.filename).join(", ")}</td>
+              </tr>`
+            : ""
+        }
       </table>
     </div>
   `;
@@ -168,8 +229,11 @@ export async function sendForwardedEmail({
   const fallbackText = `[Mailtion Auto-Forward]
 Hộp thư Mailtion: ${originalTo}
 Người gửi: ${fromDisplay}
-${otpCode ? `Mã OTP: ${otpCode}\n` : ""}
---------------------------------------------------
+${otpCode ? `Mã OTP: ${otpCode}\n` : ""}${
+  emailAttachments.length > 0
+    ? `File đính kèm: ${emailAttachments.map((a) => a.filename).join(", ")}\n`
+    : ""
+}--------------------------------------------------
 
 ${text || "(Nội dung trống)"}`;
 
@@ -179,6 +243,7 @@ ${text || "(Nội dung trống)"}`;
     html: finalHtml,
     text: fallbackText,
     replyTo: originalFrom,
+    attachments: emailAttachments.length > 0 ? emailAttachments : undefined,
   });
 }
 

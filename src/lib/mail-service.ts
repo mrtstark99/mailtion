@@ -567,6 +567,7 @@ export async function processInboundEmail(payload: {
           html: payload.html,
           text: payload.text,
           otpCode: otpCode || undefined,
+          attachments: payload.attachments,
         }).catch((err) => {
           console.error(`[AutoForward] Failed forwarding email to ${targetEmail}:`, err);
         });
