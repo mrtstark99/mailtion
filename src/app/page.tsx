@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import {
-  LayoutDashboard,
   Mail,
   Sparkles,
   Inbox,
@@ -16,7 +15,6 @@ import {
 } from "lucide-react";
 import { Navbar } from "@/components/navbar";
 import { ToastProvider, useToast } from "@/components/toast";
-import { TabOverview } from "@/components/tab-overview";
 import { TabGenerator } from "@/components/tab-generator";
 import { TabMailboxes } from "@/components/tab-mailboxes";
 import { TabInbox } from "@/components/tab-inbox";
@@ -120,9 +118,9 @@ function DashboardContent() {
     checkAuth();
   }, []);
 
-  // Strict guard: Admin accounts cannot display or stay on mailboxes/inbox
+  // Strict guard: Admin accounts cannot display or stay on mailboxes/inbox/overview
   useEffect(() => {
-    if (currentUser?.role === "admin" && (activeTab === "mailboxes" || activeTab === "inbox")) {
+    if (currentUser?.role === "admin" && (activeTab === "mailboxes" || activeTab === "inbox" || activeTab === "overview")) {
       setActiveTab("admin_users");
     }
   }, [currentUser, activeTab]);
@@ -168,28 +166,6 @@ function DashboardContent() {
     }
   };
 
-  const handleQuickGenerateFromOverview = async (count: number) => {
-    try {
-      const res = await fetch("/api/v1/mailboxes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          bulk: true,
-          mode: "random",
-          count,
-          prefix: "quick",
-        }),
-      });
-      if (res.ok) {
-        toast(`Successfully created ${count} random mailboxes!`, "success");
-        setRefreshTrigger((prev) => prev + 1);
-        setActiveTab("admin_users");
-      }
-    } catch {
-      toast("Error generating mailboxes", "error");
-    }
-  };
-
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white dark:bg-zinc-950">
@@ -231,7 +207,6 @@ function DashboardContent() {
       badge: "Admin",
       badgeColor: "bg-purple-600 text-white",
     },
-    { id: "overview", label: "Overview", icon: LayoutDashboard },
     { id: "generator", label: "Bulk Generator", icon: Sparkles },
     { id: "webhooks", label: "Webhooks & Bots", icon: Send },
     { id: "apikeys", label: "API Keys", icon: KeyRound },
@@ -319,15 +294,6 @@ function DashboardContent() {
               <TabAdminDashboard
                 currentUserId={currentUser.id}
                 onRefreshAll={handleRefreshAll}
-              />
-            )}
-            {activeTab === "overview" && isAdmin && (
-              <TabOverview
-                stats={stats}
-                recentMessages={recentMessages}
-                onSelectTab={setActiveTab}
-                onOpenInboxForMailbox={handleOpenInboxForMailbox}
-                onQuickGenerate={handleQuickGenerateFromOverview}
               />
             )}
             {activeTab === "generator" && isAdmin && (
