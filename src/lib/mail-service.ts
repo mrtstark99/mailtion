@@ -21,6 +21,7 @@ export interface Mailbox {
   updated_at: string;
   message_count?: number;
   unread_count?: number;
+  has_access_account?: number;
 }
 
 export interface Message {
@@ -85,6 +86,16 @@ export function updateSetting(key: string, value: string): void {
 // Mailboxes
 // -------------------------------------------------------------
 
+// Mailboxes a user may read: the ones they own, plus the single mailbox a shared-access
+// account (role = 'mailbox') is bound to. Bind the user id twice.
+const READABLE_MAILBOX_IDS_SQL =
+  "SELECT id FROM mailboxes WHERE user_id = ? UNION SELECT mailbox_id FROM users WHERE id = ? AND mailbox_id IS NOT NULL";
+
+export function canReadMailbox(userId: string, mailboxId: string): boolean {
+  const row = db.prepare(`SELECT 1 AS ok WHERE ? IN (${READABLE_MAILBOX_IDS_SQL})`).get(mailboxId, userId, userId);
+  return Boolean(row);
+}
+
 /**
  * Validates forwarding destinations from an API body (string or string[]) and returns
  * the comma-separated form stored in mailboxes.forward_to (null when empty).
@@ -122,8 +133,8 @@ export function getMailboxes(options: {
   const params: (string | number)[] = [];
 
   if (options.userId) {
-    whereClauses += " AND m.user_id = ?";
-    params.push(options.userId);
+    whereClauses += ` AND m.id IN (${READABLE_MAILBOX_IDS_SQL})`;
+    params.push(options.userId, options.userId);
   }
 
   if (options.search) {
@@ -147,10 +158,11 @@ export function getMailboxes(options: {
   const total = totalRow ? totalRow.total : 0;
 
   const dataQuery = `
-    SELECT 
+    SELECT
       m.*,
       COUNT(msg.id) as message_count,
-      SUM(CASE WHEN msg.is_read = 0 THEN 1 ELSE 0 END) as unread_count
+      SUM(CASE WHEN msg.is_read = 0 THEN 1 ELSE 0 END) as unread_count,
+      (SELECT COUNT(*) FROM users u WHERE u.mailbox_id = m.id) as has_access_account
     FROM mailboxes m
     LEFT JOIN messages msg ON m.id = msg.mailbox_id
     ${whereClauses}
@@ -358,8 +370,8 @@ export function getMessages(options: {
   const params: (string | number)[] = [];
 
   if (options.userId) {
-    whereClauses += " AND m.mailbox_id IN (SELECT id FROM mailboxes WHERE user_id = ?)";
-    params.push(options.userId);
+    whereClauses += ` AND m.mailbox_id IN (${READABLE_MAILBOX_IDS_SQL})`;
+    params.push(options.userId, options.userId);
   }
 
   if (options.mailboxId) {
@@ -427,11 +439,8 @@ export function getMessageById(id: string, userId?: string | null): (Message & {
 
   if (!msg) return null;
 
-  if (userId) {
-    const owner = db.prepare("SELECT user_id FROM mailboxes WHERE id = ?").get(msg.mailbox_id) as { user_id: string | null } | undefined;
-    if (owner?.user_id !== userId) {
-      return null;
-    }
+  if (userId && !canReadMailbox(userId, msg.mailbox_id)) {
+    return null;
   }
 
   const attachments = db.prepare("SELECT * FROM attachments WHERE message_id = ?").all(id) as unknown as Attachment[];
@@ -645,16 +654,19 @@ export async function processInboundEmail(payload: {
 // Stats
 // -------------------------------------------------------------
 export function getSystemStats(userId?: string | null) {
-  const scope = userId ? "WHERE user_id = ?" : "";
+  const readable = `IN (${READABLE_MAILBOX_IDS_SQL})`;
+  const scope = userId ? `WHERE id ${readable}` : "";
+  const msgScope = userId ? `msg.mailbox_id ${readable}` : "1=1";
+  // Four scoped clauses, each binding the user id twice
   const stats = db.prepare(`
     SELECT
       COUNT(*) AS totalMailboxes,
       SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS activeMailboxes,
-      (SELECT COUNT(*) FROM messages msg WHERE ${userId ? "msg.mailbox_id IN (SELECT id FROM mailboxes WHERE user_id = ?)" : "1=1"}) AS totalMessages,
-      (SELECT COUNT(*) FROM messages msg WHERE msg.is_read = 0 AND ${userId ? "msg.mailbox_id IN (SELECT id FROM mailboxes WHERE user_id = ?)" : "1=1"}) AS unreadMessages,
-      (SELECT COUNT(*) FROM messages msg WHERE date(msg.created_at) = date('now') AND ${userId ? "msg.mailbox_id IN (SELECT id FROM mailboxes WHERE user_id = ?)" : "1=1"}) AS todayMessages
+      (SELECT COUNT(*) FROM messages msg WHERE ${msgScope}) AS totalMessages,
+      (SELECT COUNT(*) FROM messages msg WHERE msg.is_read = 0 AND ${msgScope}) AS unreadMessages,
+      (SELECT COUNT(*) FROM messages msg WHERE date(msg.created_at) = date('now') AND ${msgScope}) AS todayMessages
     FROM mailboxes ${scope}
-  `).get(...(userId ? [userId, userId, userId, userId] : [])) as {
+  `).get(...(userId ? Array(8).fill(userId) : [])) as {
     totalMailboxes: number;
     activeMailboxes: number;
     totalMessages: number;
@@ -665,9 +677,9 @@ export function getSystemStats(userId?: string | null) {
   // Recent tags
   const tags = db.prepare(`
     SELECT tag, COUNT(*) as count FROM mailboxes 
-    ${userId ? "WHERE user_id = ? AND" : "WHERE"} tag IS NOT NULL AND tag != ''
+    ${userId ? `WHERE id ${readable} AND` : "WHERE"} tag IS NOT NULL AND tag != ''
     GROUP BY tag ORDER BY count DESC LIMIT 10
-  `).all(...(userId ? [userId] : [])) as { tag: string; count: number }[];
+  `).all(...(userId ? [userId, userId] : [])) as { tag: string; count: number }[];
 
   return {
     totalMailboxes: stats.totalMailboxes,

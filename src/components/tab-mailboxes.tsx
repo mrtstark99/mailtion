@@ -20,10 +20,13 @@ import {
   Dices,
   ShieldCheck,
   Forward,
+  UserPlus,
+  Users,
 } from "lucide-react";
 import { formatDate, splitForwardAddresses } from "@/lib/utils";
 import { useToast } from "./toast";
 import { ForwardAddressesInput } from "./forward-addresses-input";
+import { ShareAccessModal } from "./share-access-modal";
 
 interface MailboxItem {
   id: string;
@@ -41,6 +44,7 @@ interface MailboxItem {
   created_at: string;
   message_count?: number;
   unread_count?: number;
+  has_access_account?: number;
 }
 
 interface TabMailboxesProps {
@@ -86,6 +90,10 @@ export function TabMailboxes({
   const [editEnableForward, setEditEnableForward] = useState<boolean>(true);
   const [editForwardTo, setEditForwardTo] = useState<string[]>([]);
   const [isSavingEdit, setIsSavingEdit] = useState<boolean>(false);
+
+  // Share access modal state
+  const [sharingItem, setSharingItem] = useState<MailboxItem | null>(null);
+  const closeShareModal = useCallback(() => setSharingItem(null), []);
 
   const fetchMailboxes = useCallback(async () => {
     setIsLoading(true);
@@ -565,6 +573,12 @@ export function TabMailboxes({
                                 <span>&rarr; Root Email</span>
                               </span>
                             )}
+                            {Boolean(item.has_access_account) && (
+                              <span className="inline-flex items-center gap-1 text-[10px] text-violet-600 dark:text-violet-400 font-medium" title="Someone has read access to this mailbox">
+                                <Users className="h-2.5 w-2.5 shrink-0" />
+                                <span>Shared</span>
+                              </span>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -611,6 +625,17 @@ export function TabMailboxes({
                             </span>
                           ) : (
                             <>
+                              <button
+                                onClick={() => setSharingItem(item)}
+                                title="Share read access"
+                                className={`rounded-lg p-1.5 cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-800 ${
+                                  item.has_access_account
+                                    ? "text-blue-600 dark:text-blue-400"
+                                    : "text-zinc-500 hover:text-blue-600 dark:text-zinc-400"
+                                }`}
+                              >
+                                <UserPlus className="h-4 w-4" />
+                              </button>
                               <button
                                 onClick={() => toggleStatus(item.id, item.status)}
                                 title={item.status === "active" ? "Pause mailbox" : "Activate mailbox"}
@@ -807,6 +832,10 @@ export function TabMailboxes({
             </form>
           </div>
         </div>
+      )}
+
+      {sharingItem && (
+        <ShareAccessModal mailbox={sharingItem} onClose={closeShareModal} onChanged={fetchMailboxes} />
       )}
 
       {/* EDIT MODAL */}

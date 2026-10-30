@@ -155,6 +155,26 @@ function createDb(): DatabaseSync {
   addUserColumn("status", "status TEXT NOT NULL DEFAULT 'active'");
   addUserColumn("max_mailboxes", "max_mailboxes INTEGER NOT NULL DEFAULT 1");
   addUserColumn("auto_forward", "auto_forward INTEGER NOT NULL DEFAULT 1");
+  // Shared-access accounts (role = 'mailbox') can only read this one mailbox and are removed with it
+  addUserColumn("mailbox_id", "mailbox_id TEXT REFERENCES mailboxes(id) ON DELETE CASCADE");
+
+  db.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_users_mailbox_id_unique
+    ON users(mailbox_id)
+    WHERE mailbox_id IS NOT NULL;
+
+    CREATE TABLE IF NOT EXISTS mailbox_invites (
+      id TEXT PRIMARY KEY,
+      mailbox_id TEXT NOT NULL,
+      token_hash TEXT UNIQUE NOT NULL,
+      created_by TEXT NOT NULL,
+      expires_at DATETIME NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (mailbox_id) REFERENCES mailboxes(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_mailbox_invites_mailbox_id ON mailbox_invites(mailbox_id);
+  `);
 
   // Partial unique index so that each recovery email can only register 1 user account
   db.exec(`

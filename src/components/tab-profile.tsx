@@ -299,7 +299,8 @@ export function TabProfile() {
         </form>
       </div>
 
-      {/* Auto-Forward Settings Card */}
+      {/* Auto-Forward Settings Card (forwarding of shared mailboxes is managed by their owner) */}
+      {profile?.role !== "mailbox" && (
       <div className="rounded-2xl border border-zinc-200 bg-white p-5 sm:p-6 shadow-xs dark:border-zinc-800 dark:bg-zinc-900/50 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -332,6 +333,7 @@ export function TabProfile() {
           </div>
         )}
       </div>
+      )}
 
       {/* Change Password Card */}
       <div className="rounded-2xl border border-zinc-200 bg-white p-5 sm:p-6 shadow-xs dark:border-zinc-800 dark:bg-zinc-900/50 space-y-4">

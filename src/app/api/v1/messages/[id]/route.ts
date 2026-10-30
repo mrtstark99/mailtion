@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getMessageById, markMessageRead, deleteMessage } from "@/lib/mail-service";
+import { getMessageById, markMessageRead, deleteMessage, canReadMailbox } from "@/lib/mail-service";
 import { getCurrentUser } from "@/lib/session";
 import { db } from "@/lib/db";
 
@@ -37,12 +37,8 @@ export async function PATCH(
       if (!user) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
-      const msg = db.prepare(`
-        SELECT m.id FROM messages m 
-        JOIN mailboxes mb ON m.mailbox_id = mb.id
-        WHERE m.id = ? AND mb.user_id = ?
-      `).get(id, user.id);
-      if (!msg) {
+      const msg = db.prepare("SELECT mailbox_id FROM messages WHERE id = ?").get(id) as { mailbox_id: string } | undefined;
+      if (!msg || !canReadMailbox(user.id, msg.mailbox_id)) {
         return NextResponse.json({ error: "Email not found" }, { status: 404 });
       }
     }
@@ -73,8 +69,9 @@ export async function DELETE(
       if (!user) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
+      // Only the mailbox owner may delete; shared-access accounts are read-only
       const msg = db.prepare(`
-        SELECT m.id FROM messages m 
+        SELECT m.id FROM messages m
         JOIN mailboxes mb ON m.mailbox_id = mb.id
         WHERE m.id = ? AND mb.user_id = ?
       `).get(id, user.id);

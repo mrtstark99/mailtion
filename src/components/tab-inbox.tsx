@@ -412,6 +412,8 @@ export function TabInbox({
 
   const selectedOtp = selectedMessage ? getOtp(selectedMessage) : null;
   const isMulti = currentUser?.role === "multi" || (currentUser?.maxMailboxes !== undefined && currentUser.maxMailboxes > 1);
+  // Accounts created from a shared-mailbox link can read but not delete
+  const isSharedAccess = currentUser?.role === "mailbox";
   const maxQuota = currentUser?.role === "admin" ? 999999 : (isMulti ? Math.max(100, currentUser?.maxMailboxes || 100) : (currentUser?.maxMailboxes ?? 1));
   const currentMailboxCount = totalMailboxes ?? mailboxes.length;
 
@@ -652,7 +654,7 @@ export function TabInbox({
               <div className="flex items-center justify-between text-xs text-zinc-500">
                 <span className="font-medium">Account Plan</span>
                 <span className="font-semibold text-zinc-700 dark:text-zinc-300">
-                  Standard (1 Primary Mail)
+                  {isSharedAccess ? "Shared Access (read-only)" : "Standard (1 Primary Mail)"}
                 </span>
               </div>
             )}
@@ -950,13 +952,15 @@ export function TabInbox({
                       )}
                     </button>
 
-                    <button
-                      onClick={() => handleDeleteMessage(selectedMessage.id)}
-                      title="Delete email"
-                      className="p-2 rounded-xl text-zinc-500 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400 transition-colors cursor-pointer"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    {!isSharedAccess && (
+                      <button
+                        onClick={() => handleDeleteMessage(selectedMessage.id)}
+                        title="Delete email"
+                        className="p-2 rounded-xl text-zinc-500 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400 transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
 

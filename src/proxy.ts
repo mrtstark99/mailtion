@@ -7,6 +7,7 @@ const PUBLIC_PATHS = [
   "/login",
   "/register",
   "/forgot-password",
+  "/mailbox-access",
   "/icon.png",
   "/logo.png",
   "/favicon.png",

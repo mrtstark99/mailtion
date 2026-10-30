@@ -10,6 +10,7 @@ export interface CurrentUser {
   role: "admin" | "user" | "multi" | string;
   status: "active" | "suspended";
   max_mailboxes: number;
+  mailbox_id: string | null;
   created_at: string;
 }
 
@@ -33,7 +34,8 @@ export async function getCurrentUser(req: NextRequest): Promise<CurrentUser | nu
           WHEN role = 'admin' THEN 999999 
           WHEN role = 'multi' AND COALESCE(max_mailboxes, 1) < 100 THEN 100 
           ELSE COALESCE(max_mailboxes, 1) 
-        END as max_mailboxes, 
+        END as max_mailboxes,
+        mailbox_id,
         created_at
       FROM users 
       WHERE lower(username) = ? OR lower(email) = ?
@@ -46,9 +48,22 @@ export async function getCurrentUser(req: NextRequest): Promise<CurrentUser | nu
       return null;
     }
 
+    // Shared-access accounts lose access while the mailbox owner is suspended
+    if (user.mailbox_id) {
+      const owner = db.prepare(`
+        SELECT COALESCE(u.status, 'active') as status
+        FROM mailboxes mb JOIN users u ON u.id = mb.user_id
+        WHERE mb.id = ?
+      `).get(user.mailbox_id) as { status: string } | undefined;
+      if (owner?.status === "suspended") {
+        return null;
+      }
+    }
+
     return user;
   } catch (err) {
     console.error("[Session] Error fetching user:", err);
     return null;
   }
 }
+

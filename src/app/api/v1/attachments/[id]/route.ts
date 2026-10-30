@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/session";
-import { validateApiKey } from "@/lib/mail-service";
+import { validateApiKey, canReadMailbox } from "@/lib/mail-service";
 
 // Only types browsers render without executing script may be shown inline.
 // Everything else (HTML, SVG, XML, JS, ...) is forced to download as opaque bytes.
@@ -31,10 +31,9 @@ export async function GET(
 
     const { id } = await params;
     const att = db.prepare(`
-      SELECT a.id, a.filename, a.content_type, a.size, a.content, mb.user_id
+      SELECT a.id, a.filename, a.content_type, a.size, a.content, m.mailbox_id
       FROM attachments a
       JOIN messages m ON a.message_id = m.id
-      JOIN mailboxes mb ON m.mailbox_id = mb.id
       WHERE a.id = ?
     `).get(id) as {
       id: string;
@@ -42,11 +41,11 @@ export async function GET(
       content_type: string;
       size: number;
       content: string | null;
-      user_id: string | null;
+      mailbox_id: string;
     } | undefined;
 
     // Respond 404 rather than 403 so attachment IDs owned by others are not confirmed
-    if (!att || !att.content || (user && user.role !== "admin" && att.user_id !== user.id)) {
+    if (!att || !att.content || (user && user.role !== "admin" && !canReadMailbox(user.id, att.mailbox_id))) {
       return NextResponse.json({ error: "Attachment not found or has no content" }, { status: 404 });
     }
 
