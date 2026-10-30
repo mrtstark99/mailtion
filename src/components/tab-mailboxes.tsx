@@ -21,8 +21,9 @@ import {
   ShieldCheck,
   Forward,
 } from "lucide-react";
-import { formatDate } from "@/lib/utils";
+import { formatDate, splitForwardAddresses } from "@/lib/utils";
 import { useToast } from "./toast";
+import { ForwardAddressesInput } from "./forward-addresses-input";
 
 interface MailboxItem {
   id: string;
@@ -74,7 +75,7 @@ export function TabMailboxes({
   const [newTag, setNewTag] = useState<string>("");
   const [newNote, setNewNote] = useState<string>("");
   const [newEnableForward, setNewEnableForward] = useState<boolean>(true);
-  const [newForwardTo, setNewForwardTo] = useState<string>("");
+  const [newForwardTo, setNewForwardTo] = useState<string[]>([]);
   const [isCreating, setIsCreating] = useState<boolean>(false);
 
   // Edit name modal state
@@ -83,7 +84,7 @@ export function TabMailboxes({
   const [editTagValue, setEditTagValue] = useState<string>("");
   const [editNoteValue, setEditNoteValue] = useState<string>("");
   const [editEnableForward, setEditEnableForward] = useState<boolean>(true);
-  const [editForwardTo, setEditForwardTo] = useState<string>("");
+  const [editForwardTo, setEditForwardTo] = useState<string[]>([]);
   const [isSavingEdit, setIsSavingEdit] = useState<boolean>(false);
 
   const fetchMailboxes = useCallback(async () => {
@@ -252,7 +253,7 @@ export function TabMailboxes({
           localPart: local,
           tag: newTag.trim() || undefined,
           note: newNote.trim() || undefined,
-          forwardTo: newForwardTo.trim() || undefined,
+          forwardTo: newForwardTo.length > 0 ? newForwardTo : undefined,
           isForwardEnabled: newEnableForward,
         }),
       });
@@ -265,7 +266,7 @@ export function TabMailboxes({
         setNewLocal("");
         setNewTag("");
         setNewNote("");
-        setNewForwardTo("");
+        setNewForwardTo([]);
         setNewEnableForward(true);
         fetchMailboxes();
       } else {
@@ -284,7 +285,7 @@ export function TabMailboxes({
     setEditNameValue(item.name || "");
     setEditTagValue(item.tag || "");
     setEditNoteValue(item.note || "");
-    setEditForwardTo(item.forward_to || "");
+    setEditForwardTo(splitForwardAddresses(item.forward_to));
     setEditEnableForward(item.is_forward_enabled !== undefined ? item.is_forward_enabled === 1 : true);
   };
 
@@ -301,7 +302,7 @@ export function TabMailboxes({
           name: editNameValue.trim() || null,
           tag: editTagValue.trim() || null,
           note: editNoteValue.trim() || null,
-          forwardTo: editForwardTo.trim() || null,
+          forwardTo: editForwardTo.length > 0 ? editForwardTo : null,
           isForwardEnabled: editEnableForward,
         }),
       });
@@ -549,9 +550,14 @@ export function TabMailboxes({
                                 <span>Forwarding Off</span>
                               </span>
                             ) : item.forward_to ? (
-                              <span className="inline-flex items-center gap-1 text-[10px] text-blue-600 dark:text-blue-400 font-medium truncate max-w-[220px]" title={`Forwarding to ${item.forward_to}`}>
+                              <span className="inline-flex items-center gap-1 text-[10px] text-blue-600 dark:text-blue-400 font-medium truncate max-w-[260px]" title={`Forwarding to ${splitForwardAddresses(item.forward_to).join(", ")}`}>
                                 <Forward className="h-2.5 w-2.5 shrink-0" />
-                                <span className="truncate">&rarr; {item.forward_to}</span>
+                                <span className="truncate">&rarr; {splitForwardAddresses(item.forward_to)[0]}</span>
+                                {splitForwardAddresses(item.forward_to).length > 1 && (
+                                  <span className="shrink-0 rounded px-1 bg-blue-100 dark:bg-blue-950/60">
+                                    +{splitForwardAddresses(item.forward_to).length - 1}
+                                  </span>
+                                )}
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-medium" title="Forwarding to your root recovery email">
@@ -758,7 +764,7 @@ export function TabMailboxes({
                   <div className="flex items-center gap-2">
                     <Forward className="h-4 w-4 text-blue-500" />
                     <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">
-                      Backup / Forwarding Email
+                      Backup / Forwarding Emails
                     </span>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
@@ -774,15 +780,9 @@ export function TabMailboxes({
 
                 {newEnableForward && (
                   <div className="space-y-1 animate-in fade-in duration-100">
-                    <input
-                      type="email"
-                      value={newForwardTo}
-                      onChange={(e) => setNewForwardTo(e.target.value)}
-                      placeholder="Backup destination email (e.g. backup@gmail.com)"
-                      className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-900 focus:border-zinc-900 outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 transition-all"
-                    />
+                    <ForwardAddressesInput value={newForwardTo} onChange={setNewForwardTo} />
                     <p className="text-[11px] text-zinc-400 leading-tight">
-                      Incoming emails to this child address will be forwarded only to this backup email.
+                      Incoming emails to this child address will be forwarded only to these backup emails.
                     </p>
                   </div>
                 )}
@@ -894,7 +894,7 @@ export function TabMailboxes({
                   <div className="flex items-center gap-2">
                     <Forward className="h-4 w-4 text-blue-500" />
                     <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">
-                      Backup / Forwarding Email
+                      Backup / Forwarding Emails
                     </span>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
@@ -910,15 +910,9 @@ export function TabMailboxes({
 
                 {editEnableForward && (
                   <div className="space-y-1 animate-in fade-in duration-100">
-                    <input
-                      type="email"
-                      value={editForwardTo}
-                      onChange={(e) => setEditForwardTo(e.target.value)}
-                      placeholder="Backup destination email (e.g. backup@gmail.com)"
-                      className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-900 focus:border-zinc-900 outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 transition-all"
-                    />
+                    <ForwardAddressesInput value={editForwardTo} onChange={setEditForwardTo} />
                     <p className="text-[11px] text-zinc-400 leading-tight">
-                      Child mailboxes forward only to their designated backup address. Account recovery email is reserved for your primary address.
+                      Child mailboxes forward only to their designated backup addresses. Account recovery email is reserved for your primary address.
                     </p>
                   </div>
                 )}

@@ -81,6 +81,25 @@ export function extractOtpCode(text: string): string | null {
   return null;
 }
 
+export const MAX_FORWARD_ADDRESSES = 5;
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export function isValidEmail(email: string): boolean {
+  return EMAIL_REGEX.test(email);
+}
+
+/**
+ * Splits forwarding destinations into a lowercased, de-duplicated list.
+ * Accepts the comma-separated form stored in mailboxes.forward_to, free text
+ * separated by commas/semicolons/whitespace, or an array of addresses.
+ */
+export function splitForwardAddresses(value: string | string[] | null | undefined): string[] {
+  if (!value) return [];
+  const parts = (Array.isArray(value) ? value : [value]).flatMap((v) => v.split(/[\s,;]+/));
+  return [...new Set(parts.map((p) => p.trim().toLowerCase()).filter(Boolean))];
+}
+
 /**
  * Ensures all hyperlinks inside HTML email content open in a new blank tab (target="_blank" rel="noopener noreferrer").
  * Also injects or normalizes <base target="_blank"> so any dynamically inserted links adhere to target="_blank".

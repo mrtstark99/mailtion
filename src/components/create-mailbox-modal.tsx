@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { X, Dices, Mail, Plus, Loader2, Sparkles, Layers, AlertCircle, Forward } from "lucide-react";
 import { useToast } from "./toast";
+import { ForwardAddressesInput } from "./forward-addresses-input";
 
 interface CreateMailboxModalProps {
   isOpen: boolean;
@@ -29,7 +30,7 @@ export function CreateMailboxModal({
   const [tag, setTag] = useState("");
   const [note, setNote] = useState("");
   const [enableForward, setEnableForward] = useState(true);
-  const [forwardTo, setForwardTo] = useState("");
+  const [forwardTo, setForwardTo] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentCount, setCurrentCount] = useState<number | null>(null);
 
@@ -93,7 +94,7 @@ export function CreateMailboxModal({
           name: displayName.trim() || undefined,
           tag: tag.trim() || undefined,
           note: note.trim() || undefined,
-          forwardTo: forwardTo.trim() || undefined,
+          forwardTo: forwardTo.length > 0 ? forwardTo : undefined,
           isForwardEnabled: enableForward,
         }),
       });
@@ -105,7 +106,7 @@ export function CreateMailboxModal({
         setDisplayName("");
         setTag("");
         setNote("");
-        setForwardTo("");
+        setForwardTo([]);
         setEnableForward(true);
         onSuccess();
         onClose();
@@ -277,7 +278,7 @@ export function CreateMailboxModal({
               <div className="flex items-center gap-2">
                 <Forward className="h-4 w-4 text-blue-500" />
                 <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">
-                  Backup / Forwarding Email
+                  Backup / Forwarding Emails
                 </span>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
@@ -294,16 +295,13 @@ export function CreateMailboxModal({
 
             {enableForward && (
               <div className="space-y-1 animate-in fade-in duration-100">
-                <input
-                  type="email"
-                  disabled={isAtLimit || isSingleOnly}
+                <ForwardAddressesInput
                   value={forwardTo}
-                  onChange={(e) => setForwardTo(e.target.value)}
-                  placeholder="Backup destination email (e.g. backup@gmail.com)"
-                  className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-900 focus:border-blue-600 outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 transition-all"
+                  onChange={setForwardTo}
+                  disabled={isAtLimit || isSingleOnly}
                 />
                 <p className="text-[11px] text-zinc-400 leading-tight">
-                  Incoming emails to this child address will be forwarded only to this backup email. (Account recovery email only receives messages for the primary address).
+                  Incoming emails to this child address will be forwarded only to these backup emails. (Account recovery email only receives messages for the primary address).
                 </p>
               </div>
             )}

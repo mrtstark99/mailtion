@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { extractOtpCode } from "./utils";
+import { extractOtpCode, isValidEmail, splitForwardAddresses, MAX_FORWARD_ADDRESSES } from "./utils";
 import { sendForwardedEmail } from "./email-sender";
 import crypto from "crypto";
 
@@ -84,6 +84,28 @@ export function updateSetting(key: string, value: string): void {
 // -------------------------------------------------------------
 // Mailboxes
 // -------------------------------------------------------------
+
+/**
+ * Validates forwarding destinations from an API body (string or string[]) and returns
+ * the comma-separated form stored in mailboxes.forward_to (null when empty).
+ */
+export function normalizeForwardTo(input: unknown): { value: string | null; error?: string } {
+  if (input === undefined || input === null || input === "") return { value: null };
+  if (typeof input !== "string" && !(Array.isArray(input) && input.every((i) => typeof i === "string"))) {
+    return { value: null, error: "Invalid backup email address format." };
+  }
+
+  const addresses = splitForwardAddresses(input);
+  const invalid = addresses.find((address) => !isValidEmail(address));
+  if (invalid) {
+    return { value: null, error: `Invalid backup email address: ${invalid}` };
+  }
+  if (addresses.length > MAX_FORWARD_ADDRESSES) {
+    return { value: null, error: `You can add at most ${MAX_FORWARD_ADDRESSES} forwarding addresses per mailbox.` };
+  }
+  return { value: addresses.length > 0 ? addresses.join(",") : null };
+}
+
 export function getMailboxes(options: {
   page?: number;
   limit?: number;
@@ -578,30 +600,38 @@ export async function processInboundEmail(payload: {
       `).get(ownerUserId) as { email?: string; recovery_email?: string | null; auto_forward: number } | undefined;
 
       // Determine forwarding settings for this specific mailbox:
-      // Primary mailbox: forwards to its forward_to, or falls back to owner's recovery_email (if owner auto_forward is enabled).
-      // Child mailboxes: ONLY forward if their own forward_to backup email is set.
+      // Primary mailbox: forwards to its forward_to list, or falls back to owner's recovery_email (if owner auto_forward is enabled).
+      // Child mailboxes: ONLY forward if their own forward_to backup emails are set.
       // Account recovery email strictly receives emails for the primary address only.
       const isPrimary = mailbox.is_primary === 1;
       const isMailboxForwardEnabled = mailbox.is_forward_enabled !== undefined ? mailbox.is_forward_enabled === 1 : true;
-      
-      const targetEmail = isPrimary
-        ? (mailbox.forward_to || (owner?.auto_forward === 1 ? (owner?.recovery_email || owner?.email) : null))?.trim()
-        : (mailbox.forward_to?.trim() || null);
 
-      if (isMailboxForwardEnabled && targetEmail && targetEmail.toLowerCase() !== toAddr) {
-        sendForwardedEmail({
-          to: targetEmail,
-          originalTo: toAddr,
-          originalFrom: payload.from,
-          originalFromName: payload.fromName,
-          subject: payload.subject,
-          html: payload.html,
-          text: payload.text,
-          otpCode: otpCode || undefined,
-          attachments: payload.attachments,
-        }).catch((err) => {
-          console.error(`[AutoForward] Failed forwarding email to ${targetEmail}:`, err);
-        });
+      const forwardList = splitForwardAddresses(mailbox.forward_to);
+      const fallbackEmail = isPrimary && owner?.auto_forward === 1 ? (owner?.recovery_email || owner?.email) : null;
+      const targetEmails = (forwardList.length > 0 ? forwardList : splitForwardAddresses(fallbackEmail))
+        .filter((email) => email !== toAddr);
+
+      if (isMailboxForwardEnabled && targetEmails.length > 0) {
+        // Send one at a time so a long list stays within Resend's per-second rate limit
+        void (async () => {
+          for (const targetEmail of targetEmails) {
+            try {
+              await sendForwardedEmail({
+                to: targetEmail,
+                originalTo: toAddr,
+                originalFrom: payload.from,
+                originalFromName: payload.fromName,
+                subject: payload.subject,
+                html: payload.html,
+                text: payload.text,
+                otpCode: otpCode || undefined,
+                attachments: payload.attachments,
+              });
+            } catch (err) {
+              console.error(`[AutoForward] Failed forwarding email to ${targetEmail}:`, err);
+            }
+          }
+        })();
       }
     }
   } catch (forwardErr) {

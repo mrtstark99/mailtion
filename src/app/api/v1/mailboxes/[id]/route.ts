@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { deleteMailbox, toggleMailboxStatus } from "@/lib/mail-service";
+import { deleteMailbox, toggleMailboxStatus, normalizeForwardTo } from "@/lib/mail-service";
 import { getCurrentUser } from "@/lib/session";
 import { db } from "@/lib/db";
 
@@ -30,6 +30,12 @@ export async function PATCH(
     }
 
     const body = await req.json();
+
+    // Validate before applying any update so a bad forward list doesn't leave a partial edit
+    const forwardTo = normalizeForwardTo(body.forwardTo);
+    if (forwardTo.error) {
+      return NextResponse.json({ error: forwardTo.error }, { status: 400 });
+    }
 
     // Protect primary mailbox: cannot pause
     if (body.status) {
@@ -62,14 +68,8 @@ export async function PATCH(
     }
 
     if (body.forwardTo !== undefined) {
-      if (body.forwardTo && typeof body.forwardTo === "string" && body.forwardTo.trim()) {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(body.forwardTo.trim())) {
-          return NextResponse.json({ error: "Invalid backup email address format." }, { status: 400 });
-        }
-      }
       db.prepare("UPDATE mailboxes SET forward_to = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(
-        body.forwardTo ? body.forwardTo.trim().toLowerCase() : null,
+        forwardTo.value,
         id
       );
     }

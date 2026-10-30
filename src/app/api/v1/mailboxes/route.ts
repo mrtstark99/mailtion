@@ -3,7 +3,8 @@ import {
   getMailboxes,
   createMailbox,
   createBulkMailboxes,
-  deleteBulkMailboxes
+  deleteBulkMailboxes,
+  normalizeForwardTo
 } from "@/lib/mail-service";
 import { getCurrentUser } from "@/lib/session";
 import { db } from "@/lib/db";
@@ -74,12 +75,12 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (body.forwardTo && typeof body.forwardTo === "string" && body.forwardTo.trim()) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(body.forwardTo.trim())) {
-        return NextResponse.json({ error: "Invalid backup email address format." }, { status: 400 });
-      }
+    const forwardTo = normalizeForwardTo(body.forwardTo);
+    if (forwardTo.error) {
+      return NextResponse.json({ error: forwardTo.error }, { status: 400 });
     }
+    // undefined leaves an existing mailbox's forwarding untouched
+    const forwardToValue = body.forwardTo === undefined ? undefined : forwardTo.value;
 
     // Check if bulk or single
     if (body.bulk || body.mode) {
@@ -92,7 +93,7 @@ export async function POST(req: NextRequest) {
         domain: body.domain,
         tag: body.tag,
         note: body.note,
-        forwardTo: body.forwardTo,
+        forwardTo: forwardToValue,
         isForwardEnabled: body.isForwardEnabled !== undefined ? Boolean(body.isForwardEnabled) : undefined,
         userId: user.id,
         expiryHours: body.expiryHours ? parseInt(body.expiryHours, 10) : undefined,
@@ -111,7 +112,7 @@ export async function POST(req: NextRequest) {
       domain: body.domain,
       tag: body.tag,
       note: body.note,
-      forwardTo: body.forwardTo,
+      forwardTo: forwardToValue,
       isForwardEnabled: body.isForwardEnabled !== undefined ? Boolean(body.isForwardEnabled) : undefined,
       expiryHours: body.expiryHours ? parseInt(body.expiryHours, 10) : undefined,
       userId: user.id,
