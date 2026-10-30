@@ -264,10 +264,11 @@ function DashboardContent() {
         currentUser={currentUser}
       />
 
-      <main className={`flex-1 w-full max-w-none ${activeTab === "inbox" ? "px-2 sm:px-4 lg:px-5 py-2.5 sm:py-3.5 space-y-2 sm:space-y-3" : "px-3 sm:px-6 lg:px-8 py-3.5 sm:py-6 space-y-4 sm:space-y-6"}`}>
-        <div className={`flex flex-col md:flex-row ${activeTab === "inbox" ? "gap-3 lg:gap-5" : "gap-4 lg:gap-8"} items-start`}>
+      {/* Spacing and sidebar width stay identical across tabs so the sidebar never shifts on tab switch */}
+      <main className="flex-1 w-full max-w-none px-2 sm:px-4 lg:px-5 py-2.5 sm:py-3.5">
+        <div className="flex flex-col md:flex-row gap-3 lg:gap-5 items-start">
           {/* Sidebar Nav */}
-          <aside className={`w-full ${activeTab === "inbox" ? "md:w-48 lg:w-52" : "md:w-56 lg:w-60"} shrink-0 md:sticky md:top-20 z-10 self-start`}>
+          <aside className="w-full md:w-56 lg:w-60 shrink-0 md:sticky md:top-20 z-10 self-start">
             <nav className="flex md:flex-col gap-1.5 text-sm font-medium overflow-x-auto no-scrollbar pb-1 md:pb-0 flex-nowrap scroll-smooth touch-pan-x -mx-3 px-3 md:mx-0 md:px-0">
               {tabs.map((tab) => {
                 const Icon = tab.icon;
