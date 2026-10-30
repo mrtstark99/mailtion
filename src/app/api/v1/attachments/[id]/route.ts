@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getCurrentUser } from "@/lib/session";
-import { validateApiKey, canReadMailbox } from "@/lib/mail-service";
+import { getRequestActor } from "@/lib/session";
+import { canReadMailbox } from "@/lib/mail-service";
 
 // Only types browsers render without executing script may be shown inline.
 // Everything else (HTML, SVG, XML, JS, ...) is forced to download as opaque bytes.
@@ -20,14 +20,11 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getCurrentUser(req);
-    if (!user) {
-      // API keys are admin-issued and grant system-wide read access
-      const authHeader = req.headers.get("authorization");
-      if (!authHeader || !validateApiKey(authHeader)) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
+    const actor = await getRequestActor(req);
+    if (!actor) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const { user } = actor;
 
     const { id } = await params;
     const att = db.prepare(`

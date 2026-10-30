@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getMessageById, markMessageRead, deleteMessage, canReadMailbox } from "@/lib/mail-service";
-import { getCurrentUser } from "@/lib/session";
+import { getCurrentUser, getRequestActor } from "@/lib/session";
 import { db } from "@/lib/db";
 
 export async function GET(
@@ -8,7 +8,11 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getCurrentUser(req);
+    const actor = await getRequestActor(req);
+    if (!actor) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const { user } = actor;
     const { id } = await params;
     const msg = getMessageById(id, user?.role === "admin" ? undefined : user?.id);
     if (!msg) {

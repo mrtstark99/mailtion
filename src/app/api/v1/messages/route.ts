@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getMessages } from "@/lib/mail-service";
-import { getCurrentUser } from "@/lib/session";
+import { getRequestActor } from "@/lib/session";
 
 export async function GET(req: NextRequest) {
   try {
-    const user = await getCurrentUser(req);
+    const actor = await getRequestActor(req);
+    if (!actor) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    const { user } = actor;
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get("page") || "1", 10);
     const limit = parseInt(searchParams.get("limit") || "20", 10);

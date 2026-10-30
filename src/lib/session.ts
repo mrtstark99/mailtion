@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { verifySessionToken, AUTH_COOKIE_NAME } from "./auth";
 import { db } from "./db";
+import { validateApiKey } from "./mail-service";
 
 export interface CurrentUser {
   id: string;
@@ -67,3 +68,17 @@ export async function getCurrentUser(req: NextRequest): Promise<CurrentUser | nu
   }
 }
 
+/**
+ * Resolves who is calling a read endpoint: a signed-in user, or an admin-issued API key
+ * (system-wide access, user = null). Returns null for anything else — notably a cookie that
+ * still has a valid signature but belongs to a deleted or suspended account, which must not
+ * fall through to unscoped queries.
+ */
+export async function getRequestActor(req: NextRequest): Promise<{ user: CurrentUser | null } | null> {
+  const user = await getCurrentUser(req);
+  if (user) return { user };
+
+  const authHeader = req.headers.get("authorization");
+  if (authHeader && validateApiKey(authHeader)) return { user: null };
+  return null;
+}
