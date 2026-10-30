@@ -1,26 +1,59 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getCurrentUser } from "@/lib/session";
+import { validateApiKey } from "@/lib/mail-service";
+
+// Only types browsers render without executing script may be shown inline.
+// Everything else (HTML, SVG, XML, JS, ...) is forced to download as opaque bytes.
+const INLINE_SAFE_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/gif",
+  "image/webp",
+  "image/avif",
+  "image/bmp",
+  "text/plain",
+]);
 
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getCurrentUser(req);
+    if (!user) {
+      // API keys are admin-issued and grant system-wide read access
+      const authHeader = req.headers.get("authorization");
+      if (!authHeader || !validateApiKey(authHeader)) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+    }
+
     const { id } = await params;
-    const att = db.prepare("SELECT * FROM attachments WHERE id = ?").get(id) as {
+    const att = db.prepare(`
+      SELECT a.id, a.filename, a.content_type, a.size, a.content, mb.user_id
+      FROM attachments a
+      JOIN messages m ON a.message_id = m.id
+      JOIN mailboxes mb ON m.mailbox_id = mb.id
+      WHERE a.id = ?
+    `).get(id) as {
       id: string;
       filename: string;
       content_type: string;
       size: number;
       content: string | null;
+      user_id: string | null;
     } | undefined;
 
-    if (!att || !att.content) {
+    // Respond 404 rather than 403 so attachment IDs owned by others are not confirmed
+    if (!att || !att.content || (user && user.role !== "admin" && att.user_id !== user.id)) {
       return NextResponse.json({ error: "Attachment not found or has no content" }, { status: 404 });
     }
 
     const buffer = Buffer.from(att.content, "base64");
-    const isDownload = req.nextUrl.searchParams.get("download") === "1";
+    const contentType = (att.content_type || "").split(";")[0].trim().toLowerCase();
+    const isInlineSafe = INLINE_SAFE_TYPES.has(contentType);
+    const isDownload = req.nextUrl.searchParams.get("download") === "1" || !isInlineSafe;
     const disposition = isDownload ? "attachment" : "inline";
 
     // RFC 6266 / RFC 5987: ASCII-only fallback filename
@@ -28,17 +61,19 @@ export async function GET(
     const safeAsciiFilename = (att.filename || "file")
       .replace(/["\r\n\\]/g, "")
       .replace(/[^\x20-\x7E]/g, "_");
-    
+
     // Full filename with Unicode support via RFC 5987 UTF-8 encoding
     const encodedFilename = encodeURIComponent(att.filename || "file");
 
     return new NextResponse(buffer, {
       status: 200,
       headers: {
-        "Content-Type": att.content_type || "application/octet-stream",
+        "Content-Type": isInlineSafe ? contentType : "application/octet-stream",
         "Content-Length": buffer.length.toString(),
         "Content-Disposition": `${disposition}; filename="${safeAsciiFilename}"; filename*=UTF-8''${encodedFilename}`,
-        "Cache-Control": "public, max-age=86400, immutable",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "sandbox; default-src 'none'; img-src 'self'; style-src 'unsafe-inline'",
+        "Cache-Control": "private, max-age=86400",
       },
     });
   } catch (error) {
