@@ -26,5 +26,6 @@ database_name = "mailtion-buffer"
 database_id = "dcc402c3-e014-4835-92b9-7e880f1c3eb2"
 
 [triggers]
-# Mỗi phút: đẩy lại thư đang chờ khi Mailtion online. 03:00 UTC: dồn chỉ mục cũ sang R2.
-crons = ["* * * * *", "0 3 * * *"]
+# Mỗi phút: đẩy lại thư đang chờ khi Mailtion online.
+# 18:00 UTC = 03:00 giờ Tokyo: dồn chỉ mục cũ sang R2 (khớp ARCHIVE_CRON trong src/index.ts).
+crons = ["* * * * *", "0 18 * * *"]

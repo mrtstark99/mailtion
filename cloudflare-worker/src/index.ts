@@ -37,6 +37,9 @@ const REPLAY_BATCH = 10;
 const RESTORE_BATCH = 10;
 const WEBHOOK_TIMEOUT_MS = 20_000;
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+// Archive job: 03:00 Tokyo = 18:00 UTC (cron của Cloudflare luôn tính theo UTC)
+const ARCHIVE_CRON = "0 18 * * *";
+const TOKYO_OFFSET_MS = 9 * 3_600_000;
 
 /**
  * Chuyển ArrayBuffer hoặc Uint8Array sang Base64 tối ưu bộ nhớ bằng chunking 32KB
@@ -66,6 +69,12 @@ function webhookUrl(env: Env): string {
 // eml/YYYY/MM/DD/<id>.eml — chia theo ngày để /restore liệt kê được theo khoảng ngày
 function emlKey(id: string, receivedAt: string): string {
   return `eml/${receivedAt.slice(0, 10).replaceAll("-", "/")}/${id}.eml`;
+}
+
+// Mọi mốc thời gian lưu/hiển thị theo giờ Tokyo, vd. 2026-11-03T01:53:14.633+09:00.
+// Cùng một định dạng nên so sánh chuỗi trong D1 vẫn đúng thứ tự; ngày trong khoá R2 là ngày Tokyo.
+function tokyoIso(ms: number = Date.now()): string {
+  return new Date(ms + TOKYO_OFFSET_MS).toISOString().replace("Z", "+09:00");
 }
 
 function nextDay(day: string): string {
@@ -154,7 +163,7 @@ async function isMailtionOnline(env: Env): Promise<boolean> {
 }
 
 async function updateStatus(env: Env, id: string, result: DeliveryResult): Promise<void> {
-  const now = new Date().toISOString();
+  const now = tokyoIso();
   const done = result.status === "delivered" || result.status === "dropped";
   await env.DB.prepare(
     `UPDATE inbound SET status = ?, attempts = attempts + 1, last_error = ?, last_attempt_at = ?,
@@ -205,7 +214,7 @@ async function replayPending(env: Env) {
 // File .eml vẫn giữ nguyên trên R2 làm backup.
 async function archiveIndex(env: Env) {
   const days = Number(env.INDEX_DAYS) || 30;
-  const cutoff = new Date(Date.now() - days * 86_400_000).toISOString();
+  const cutoff = tokyoIso(Date.now() - days * 86_400_000);
   let archived = 0;
 
   for (let round = 0; round < 5; round++) {
@@ -267,7 +276,7 @@ async function restore(env: Env, from: string, to: string, cursor?: string) {
           meta.to ?? "",
           meta.from ?? "",
           id,
-          meta.receivedAt ?? `${day}T00:00:00.000Z`
+          meta.receivedAt ?? `${day}T00:00:00.000+09:00`
         );
         const result = await deliver(env, payload);
         if (result.status === "pending") {
@@ -290,7 +299,7 @@ async function restore(env: Env, from: string, to: string, cursor?: string) {
 }
 
 async function bufferStats(env: Env) {
-  const since24 = new Date(Date.now() - 86_400_000).toISOString();
+  const since24 = tokyoIso(Date.now() - 86_400_000);
   const row = await env.DB.prepare(
     `SELECT
        SUM(status = 'pending') AS pending,
@@ -318,7 +327,7 @@ async function bufferStats(env: Env) {
 export default {
   async email(message: ForwardableEmailMessage, env: Env): Promise<void> {
     const id = crypto.randomUUID();
-    const receivedAt = new Date().toISOString();
+    const receivedAt = tokyoIso();
     const raw = await new Response(message.raw).arrayBuffer();
     const key = emlKey(id, receivedAt);
 
@@ -352,7 +361,7 @@ export default {
       return;
     }
 
-    const now = new Date().toISOString();
+    const now = tokyoIso();
     const done = result.status === "delivered" || result.status === "dropped";
     try {
       await env.DB.prepare(
@@ -376,7 +385,7 @@ export default {
 
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     const job =
-      controller.cron === "0 3 * * *"
+      controller.cron === ARCHIVE_CRON
         ? archiveIndex(env).then((r) => console.log(`[mailtion] Archived ${r.archived} index rows older than ${r.cutoff}`))
         : replayPending(env).then((r) => {
             if (r.delivered) console.log(`[mailtion] Replayed ${r.delivered}/${r.checked} buffered emails`);
@@ -410,7 +419,7 @@ export default {
     return json({
       worker: "mailtion-email-router",
       status: "running",
-      timestamp: new Date().toISOString(),
+      timestamp: tokyoIso(),
       buffer,
     });
   },
