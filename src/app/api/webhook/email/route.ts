@@ -35,6 +35,8 @@ export async function POST(req: NextRequest) {
       html: payload.html,
       rawHeaders: payload.rawHeaders,
       attachments: payload.attachments,
+      deliveryId: payload.deliveryId || req.headers.get("x-mailtion-delivery-id") || undefined,
+      receivedAt: payload.receivedAt,
     });
 
     return NextResponse.json({ success: true, ...result });

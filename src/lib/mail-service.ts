@@ -470,7 +470,17 @@ export async function processInboundEmail(payload: {
   html?: string;
   rawHeaders?: string;
   attachments?: Array<{ filename: string; contentType: string; size: number; content?: string }>;
+  deliveryId?: string;
+  receivedAt?: string;
 }) {
+  const deliveryId = payload.deliveryId?.trim() || null;
+  if (deliveryId) {
+    const existing = db.prepare("SELECT id FROM messages WHERE delivery_id = ?").get(deliveryId) as { id: string } | undefined;
+    if (existing) {
+      return { status: "duplicate", messageId: existing.id };
+    }
+  }
+
   const toAddr = payload.to.toLowerCase().trim();
   const settings = getSettings();
   let mailbox = getMailboxByAddress(toAddr);
@@ -499,11 +509,13 @@ export async function processInboundEmail(payload: {
   const otpCode = extractOtpCode(`${payload.subject} ${textContent}`);
   const hasAttachments = payload.attachments && payload.attachments.length > 0 ? 1 : 0;
 
-  const nowIso = new Date().toISOString();
+  // Replayed emails keep the time Cloudflare received them, not the time Mailtion came back up
+  const receivedMs = payload.receivedAt ? Date.parse(payload.receivedAt) : NaN;
+  const nowIso = new Date(Number.isNaN(receivedMs) || receivedMs > Date.now() ? Date.now() : receivedMs).toISOString();
   db.prepare(`
     INSERT INTO messages (
-      id, mailbox_id, from_addr, from_name, to_addr, subject, body_text, body_html, raw_headers, is_read, has_attachments, otp_code, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
+      id, mailbox_id, from_addr, from_name, to_addr, subject, body_text, body_html, raw_headers, is_read, has_attachments, otp_code, created_at, delivery_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)
   `).run(
     messageId,
     mailbox.id,
@@ -516,7 +528,8 @@ export async function processInboundEmail(payload: {
     payload.rawHeaders || null,
     hasAttachments,
     otpCode,
-    nowIso
+    nowIso,
+    deliveryId
   );
 
   // Attachments

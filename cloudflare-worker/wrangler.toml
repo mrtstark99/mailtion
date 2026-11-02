@@ -9,3 +9,22 @@ compatibility_date = "2024-09-23"
 # Giá trị thực tế:
 #   DASHBOARD_WEBHOOK_URL = "https://mailtion.com/api/webhook/email"
 #   WEBHOOK_SECRET        = <khớp với webhook_secret trong Settings của Mailtion>
+
+[vars]
+# Số ngày giữ chỉ mục trong D1; cũ hơn được dồn sang R2 archive/index-YYYY-MM.jsonl
+INDEX_DAYS = "30"
+
+# Bản gốc .eml của mọi thư (backup lâu dài, không có lifecycle xoá)
+[[r2_buckets]]
+binding = "MAIL_BUCKET"
+bucket_name = "mailtion-mail-buffer"
+
+# Chỉ mục + trạng thái giao thư (schema.sql)
+[[d1_databases]]
+binding = "DB"
+database_name = "mailtion-buffer"
+database_id = "REPLACE_WITH_D1_ID" # điền sau `npx wrangler d1 create mailtion-buffer`
+
+[triggers]
+# Mỗi phút: đẩy lại thư đang chờ khi Mailtion online. 03:00 UTC: dồn chỉ mục cũ sang R2.
+crons = ["* * * * *", "0 3 * * *"]

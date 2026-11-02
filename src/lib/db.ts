@@ -176,6 +176,17 @@ function createDb(): DatabaseSync {
     CREATE INDEX IF NOT EXISTS idx_mailbox_invites_mailbox_id ON mailbox_invites(mailbox_id);
   `);
 
+  // delivery_id from the Cloudflare buffer Worker: replays of the same email must not create a second message
+  const messageColumns = db.prepare("PRAGMA table_info(messages)").all() as { name: string }[];
+  if (!messageColumns.some((column) => column.name === "delivery_id")) {
+    db.exec("ALTER TABLE messages ADD COLUMN delivery_id TEXT");
+  }
+  db.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_delivery_id
+    ON messages(delivery_id)
+    WHERE delivery_id IS NOT NULL;
+  `);
+
   // Partial unique index so that each recovery email can only register 1 user account
   db.exec(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_users_recovery_email_unique 
