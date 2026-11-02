@@ -23,7 +23,7 @@ bucket_name = "mailtion-mail-buffer"
 [[d1_databases]]
 binding = "DB"
 database_name = "mailtion-buffer"
-database_id = "REPLACE_WITH_D1_ID" # điền sau `npx wrangler d1 create mailtion-buffer`
+database_id = "dcc402c3-e014-4835-92b9-7e880f1c3eb2"
 
 [triggers]
 # Mỗi phút: đẩy lại thư đang chờ khi Mailtion online. 03:00 UTC: dồn chỉ mục cũ sang R2.
